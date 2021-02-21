@@ -22,9 +22,6 @@ class IncomingSubmissions(tk.Frame):
         # Initialize Treeview
         self.tree = ttk.Treeview(parent)
 
-        # Initialize queue
-        self.queue = queue.Queue()
-
         # Specify number of columns
         self.tree["columns"] = ("1", "2")
 
@@ -35,34 +32,59 @@ class IncomingSubmissions(tk.Frame):
         self.tree.heading("1", text="Subreddit")
         self.tree.heading("2", text="Title")
 
+        # Configure the tree into the GUI
+        self.tree.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=1)
+
+        # Initialize scrollbar
         self.scrollbar = tk.Scrollbar(self.tree, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=self.scrollbar.set)
         self.scrollbar.pack(side="right", fill="y")
 
-        # Configure the tree into the GUI
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=1)
+        # Initialize pause button
+        self.is_paused = False
+        self.pause = tk.Button(self, text="Pause", command=self.pause)
+        self.pause.pack(side="top")
 
-    def insideMainLoopCheckQueue(self):
+        # Initialize scale bar
+        self.speed = tk.IntVar()
+        self.speed.set(0.1)
+        self.speedbar = tk.Scale(self, from_=0.1, to=1, resolution=0.1, orient=tk.HORIZONTAL, variable=self.speed)
+        self.speedbar.pack(side="top")
+
+        # Initialize queue
+        self.queue = queue.Queue()
+
+    def insertIntoTree(self):
         try:
             submission = self.queue.get(block=False)
-            if submission is not None:
+            if submission is not None and not self.is_paused:
                 self.tree.insert("", 0, text='Submission', values=(submission[0], submission[1]))
         except queue.Empty:
             pass
-        root.after(10, self.insideMainLoopCheckQueue)
+        root.after(int(self.speedbar.get() * 1000), self.insertIntoTree)
 
-    def startTask(self):
-        threading.Thread(target=self.otherThreadGeneratingOutput).start()
+    def startStreaming(self):
+        threading.Thread(target=self.addSubmissionsToQueue).start()
 
-    def otherThreadGeneratingOutput(self):
+    def addSubmissionsToQueue(self):
         for submission in reddit.subreddit('all').stream.submissions():
-            self.queue.put([submission.subreddit, submission.title])
+            if not self.is_paused:
+                self.queue.put([submission.subreddit, submission.title])
+                time.sleep(int(self.speedbar.get()))
+
+    def pause(self):
+        if self.is_paused:
+            self.is_paused = False
+        else:
+            self.is_paused = True
+
 
 
 root = tk.Tk()
+root.geometry('1000x1000')
 frame = IncomingSubmissions(root)
-frame.startTask()
-frame.after(0, frame.insideMainLoopCheckQueue)
+frame.startStreaming()
+frame.after(100, frame.insertIntoTree)
 frame.pack()
 root.mainloop()
 
