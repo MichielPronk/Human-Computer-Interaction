@@ -11,7 +11,7 @@ from tkinter import ttk
 root = Tk()
 
 content = ttk.Frame(root)
-frame = ttk.Frame(content, borderwidth=5, relief="ridge", width=200, height=100)
+frame = ttk.Frame(content, borderwidth=5, relief="ridge", width=800, height=400)
 namelbl = ttk.Label(content, text="Name")
 name = ttk.Entry(content)
 
