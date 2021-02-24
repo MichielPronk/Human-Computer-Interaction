@@ -1,4 +1,5 @@
 import praw
+from prawcore import NotFound
 import tkinter as tk
 import tkinter.ttk as ttk
 import time
@@ -48,21 +49,27 @@ class IncomingSubmissions(tk.Frame):
 
         # Initialize scale bar
         self.speed = tk.IntVar()
-        self.speed.set(0.1)
-        self.speedbar = tk.Scale(self, from_=0.1, to=1, resolution=0.1, orient=tk.HORIZONTAL, variable=self.speed)
+        self.speed.set(int(1))
+        self.speedbar = tk.Scale(self, from_=1, to=10, resolution=1, orient=tk.HORIZONTAL, variable=self.speed)
         # self.speedbar.pack(side="top")
 
         # Initialize queue
         self.queue = queue.Queue()
 
+        self.after(100, self.insertIntoTree)
+
+        # Initialize whitelist and blacklist list
+        self.white_list = []
+        self.black_list = []
+
         # Initialize whitelist
-        self.whitelist = ttk.Treeview(self, columns=('1'))
+        self.whitelist = ttk.Treeview(self, columns='1')
         self.whitelist.heading("1", text="Whitelist")
         self.whitelist.column("1")
         self.whitelist['show'] = 'headings'
 
         # Initialize blacklist
-        self.blacklist = ttk.Treeview(self, columns=('1'))
+        self.blacklist = ttk.Treeview(self, columns='1')
         self.blacklist.heading("1", text="Blacklist")
         self.blacklist.column("1")
         self.blacklist['show'] = 'headings'
@@ -70,11 +77,11 @@ class IncomingSubmissions(tk.Frame):
         # Initialize input whitelist
         self.list_frame = tk.Frame(self)
         self.w_text = tk.Entry(self.list_frame)
-        self.w_submit = tk.Button(self.list_frame, text='Submit')
-        self.w_delete = tk.Button(self.list_frame, text='Delete')
+        self.w_submit = tk.Button(self.list_frame, text='Submit', command=lambda: self.submit('W'))
+        self.w_delete = tk.Button(self.list_frame, text='Delete', command=lambda: self.delete('W'))
         self.b_text = tk.Entry(self.list_frame)
-        self.b_submit = tk.Button(self.list_frame, text='Submit')
-        self.b_delete = tk.Button(self.list_frame, text='Delete')
+        self.b_submit = tk.Button(self.list_frame, text='Submit', command=lambda: self.submit('B'))
+        self.b_delete = tk.Button(self.list_frame, text='Delete', command=lambda: self.delete('B'))
 
         # Grid layout
         self.grid(column=0, row=0, sticky='NESW')
@@ -113,7 +120,7 @@ class IncomingSubmissions(tk.Frame):
                 self.tree.insert("", 0, text='Submission', values=(submission[0], submission[1]))
         except queue.Empty:
             pass
-        root.after(int(self.speedbar.get() * 1000), self.insertIntoTree)
+        self.after(int(self.speedbar.get() * 100), self.insertIntoTree)
 
     def startStreaming(self):
         threading.Thread(target=self.addSubmissionsToQueue).start()
@@ -121,8 +128,15 @@ class IncomingSubmissions(tk.Frame):
     def addSubmissionsToQueue(self):
         for submission in reddit.subreddit('all').stream.submissions():
             if not self.is_paused:
-                self.queue.put([submission.subreddit, submission.title])
-                time.sleep(int(self.speedbar.get()))
+                if self.white_list and not self.black_list:
+                    if submission.subreddit in self.white_list:
+                        self.queue.put([submission.subreddit, submission.title])
+                elif self.black_list and not self.white_list:
+                    if submission.subreddit not in self.black_list:
+                        self.queue.put([submission.subreddit, submission.title])
+                elif not self.black_list and not self.white_list:
+                    self.queue.put([submission.subreddit, submission.title])
+                time.sleep(int(self.speedbar.get())/10)
 
     def pause(self):
         if self.is_paused:
@@ -130,11 +144,53 @@ class IncomingSubmissions(tk.Frame):
         else:
             self.is_paused = True
 
+    def sub_exists(self, sub):
+        try:
+            reddit.subreddits.search_by_name(sub, exact=True)
+        except NotFound:
+            return False
+        return True
+
+
+    def submit(self, color):
+        if color == 'W':
+            subreddit = self.w_text.get()
+            self.w_text.delete(0, tk.END)
+            if self.sub_exists(subreddit):
+                self.white_list.append(subreddit)
+                self.whitelist.insert("", tk.END, text=subreddit, values=subreddit)
+        elif color == 'B':
+            subreddit = self.b_text.get()
+            self.b_text.delete(0, tk.END)
+            if self.sub_exists(subreddit):
+                self.black_list.append(subreddit)
+                self.blacklist.insert("", tk.END, text=subreddit, values=subreddit)
+
+
+    def delete(self, color):
+        if color == 'W':
+            row_id = self.whitelist.focus()
+            node_name = self.whitelist.item(row_id)['text']
+            try:
+                self.whitelist.delete(row_id)
+                self.white_list.remove(node_name)
+            except:
+                pass
+
+        elif color == 'B':
+            row_id = self.blacklist.focus()
+            node_name = self.blacklist.item(row_id)['text']
+            try:
+                self.blacklist.delete(row_id)
+                self.black_list.remove(node_name)
+            except:
+                pass
+
 
 root = tk.Tk()
 root.state('zoomed')
 frame = IncomingSubmissions(root)
 frame.startStreaming()
-frame.after(100, frame.insertIntoTree)
+# frame.after(100, frame.insertIntoTree)
 # frame.pack()
 root.mainloop()
