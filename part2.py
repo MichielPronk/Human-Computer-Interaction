@@ -42,14 +42,12 @@ class CommentTreeDisplay(tk.Frame):
 
         # Initialize Treeview
         self.comment_tree = ttk.Treeview(self)
+        self.comment_tree.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=1)
 
-
-        self.grid(column=0, row=0, sticky='NESW')
-        tk.Grid.rowconfigure(parent, 0, weight=1)
-        tk.Grid.columnconfigure(parent, 0, weight=1)
-        tk.Grid.rowconfigure(self, 0, weight=1)
-        tk.Grid.columnconfigure(self, 0, weight=1)
-        self.comment_tree.grid(column=0, row=0, columnspan=1, rowspan= 1, sticky='NESW')
+        # Initialize scrollbar
+        self.scrollbar = tk.Scrollbar(self.comment_tree, orient="vertical", command=self.comment_tree.yview)
+        self.comment_tree.configure(yscrollcommand=self.scrollbar.set)
+        self.scrollbar.pack(side="right", fill="y")
 
     def askURL(self):
         url = tk.simpledialog.askstring(title="URL", prompt="Type your URL here")
@@ -61,21 +59,19 @@ class CommentTreeDisplay(tk.Frame):
         n = 1
         for comment in submission.comments:
             comment_id = str(n)
-            print(comment_id, comment.body)
-            layer = self.comment_tree.insert('', tk.END, iid=comment_id, text=comment.body)
+            layer = self.comment_tree.insert('', tk.END, iid=comment_id, text=comment_id, values=comment.body)
             self.parseComments(comment, 1, layer, comment_id)
             n += 1
 
     def parseComments(self, top_comment, depth, layer, comment_id):
         for comment in top_comment.replies:
             comment_id = comment_id + "." + str(depth)
-            print(comment_id, comment.body)
-            sublayer = self.comment_tree.insert(layer, tk.END, iid=comment_id, text=comment.body)
+            sublayer = self.comment_tree.insert(layer, tk.END, iid=comment_id, text=comment_id, values=comment.body)
             self.parseComments(comment, depth + 1, sublayer, comment_id)
 
 
 root = tk.Tk()
 root.state('zoomed')
 frame = CommentTreeDisplay(root)
-frame.pack()
+frame.pack(fill="both", expand=1)
 root.mainloop()
