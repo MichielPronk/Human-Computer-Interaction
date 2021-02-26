@@ -1,7 +1,7 @@
 import praw
 import tkinter as tk
 import tkinter.ttk as ttk
-from tkinter import simpledialog
+from tkinter import simpledialog, messagebox
 import threading
 
 reddit = praw.Reddit(
@@ -31,7 +31,7 @@ class CommentTreeDisplay(tk.Frame):
         menubar.add_cascade(menu=menu_file, label='File')
 
         # Add Exit option to File
-        menu_file.add_command(label="Exit")
+        menu_file.add_command(label="Exit", command=quit)
 
         # Create Processing menu
         menu_processing = tk.Menu(menubar)
@@ -54,21 +54,30 @@ class CommentTreeDisplay(tk.Frame):
         threading.Thread(target=lambda: self.showComments(url)).start()
 
     def showComments(self, URL):
-        submission = reddit.submission(url=URL)
-        submission.comments.replace_more(limit=None)
-        n = 1
-        for comment in submission.comments:
-            comment_id = str(n)
-            layer = self.comment_tree.insert('', tk.END, iid=comment_id, text=comment_id, values=comment.body)
-            self.parseComments(comment, 1, layer, comment_id)
-            n += 1
+        try:
+            submission = reddit.submission(url=URL)
+            submission.comments.replace_more(limit=None)
+            for comment in submission.comments:
+                text = self.filter(comment.body)
+                layer = self.comment_tree.insert('', tk.END, iid=comment.id, text=text)
+                self.parseComments(comment, layer)
+        except:
+            tk.messagebox.showerror('Error', 'URL not found')
 
-    def parseComments(self, top_comment, depth, layer, comment_id):
+    def parseComments(self, top_comment, layer):
         for comment in top_comment.replies:
-            comment_id = comment_id + "." + str(depth)
-            sublayer = self.comment_tree.insert(layer, tk.END, iid=comment_id, text=comment_id, values=comment.body)
-            self.parseComments(comment, depth + 1, sublayer, comment_id)
+            text = self.filter(comment.body)
+            sublayer = self.comment_tree.insert(layer, tk.END, iid=comment.id, text=text)
+            self.parseComments(comment, sublayer)
 
+    def filter(self, text):
+        new_text = ''
+        for char in text:
+            if char != '\n':
+                new_text = new_text + char
+            else:
+                new_text = new_text + ' '
+        return new_text
 
 root = tk.Tk()
 root.state('zoomed')
