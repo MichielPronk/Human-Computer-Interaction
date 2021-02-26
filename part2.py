@@ -59,25 +59,20 @@ class CommentTreeDisplay(tk.Frame):
             item = self.queue.get(block=False)
             if item is not None:
                 comment = item[0]
-                text = self.filter(comment.body)
-                parent_id = comment.parent_id[3:]
+                text = comment.body.replace("\n", " ")
                 if item[1]:
                     self.comment_tree.insert('',  tk.END, iid=comment.id, text=text, open=True)
                     self.after(1, self.showComments)
                 else:
-                    self.comment_tree.insert(parent_id, tk.END, iid=comment.id, text=text, open=True)
+                    self.comment_tree.insert(comment.parent_id[3:], tk.END, iid=comment.id, text=text, open=True)
                     self.after(1, self.showComments)
         except queue.Empty:
             self.after(1, self.showComments)
 
-
-
-
     def askURL(self):
         url = tk.simpledialog.askstring(title="URL", prompt="Type your URL here")
+        self.comment_tree.delete(*self.comment_tree.get_children())
         threading.Thread(target=lambda: self.getComments(url)).start()
-
-
 
     def getComments(self, URL):
         try:
@@ -93,15 +88,6 @@ class CommentTreeDisplay(tk.Frame):
         for comment in top_comment.replies:
             self.queue.put([comment, False])
             self.parseComments(comment)
-
-    def filter(self, text):
-        new_text = ''
-        for char in text:
-            if char != '\n':
-                new_text = new_text + char
-            else:
-                new_text = new_text + ' '
-        return new_text
 
 
 root = tk.Tk()

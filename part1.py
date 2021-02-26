@@ -34,13 +34,9 @@ class IncomingSubmissions(tk.Frame):
         # Only show column headers
         self.tree['show'] = 'headings'
 
-        # Configure the tree into the GUI
-        # self.tree.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=1)
-
         # Initialize scrollbar
         self.scrollbar = tk.Scrollbar(self.tree, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=self.scrollbar.set)
-        # self.scrollbar.pack(side="right", fill="y")
 
         # Initialize pause button
         self.is_paused = False
@@ -51,7 +47,6 @@ class IncomingSubmissions(tk.Frame):
         self.speed = tk.IntVar()
         self.speed.set(int(1))
         self.speedbar = tk.Scale(self, from_=1, to=10, resolution=1, orient=tk.HORIZONTAL, variable=self.speed)
-        # self.speedbar.pack(side="top")
 
         # Initialize queue
         self.queue = queue.Queue()
@@ -191,6 +186,4 @@ root = tk.Tk()
 root.state('zoomed')
 frame = IncomingSubmissions(root)
 frame.startStreaming()
-# frame.after(100, frame.insertIntoTree)
-# frame.pack()
 root.mainloop()
