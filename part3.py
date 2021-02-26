@@ -3,7 +3,6 @@ import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import simpledialog, messagebox
 import threading
-import queue
 
 reddit = praw.Reddit(
     client_id="kXHM-WcuSy2pDQ",
@@ -22,10 +21,6 @@ class CommentTreeDisplay(tk.Frame):
 
         # Makes sure each menu does not appear as its own window
         self.option_add('*tearOff', False)
-
-        # Create queue
-        self.queue = queue.Queue()
-        self.after(1, self.showComments(0))
 
         # Create a menubar and add it to root
         menubar = tk.Menu(parent)
@@ -54,46 +49,27 @@ class CommentTreeDisplay(tk.Frame):
         self.comment_tree.configure(yscrollcommand=self.scrollbar.set)
         self.scrollbar.pack(side="right", fill="y")
 
-    def showComments(self, layer):
-        try:
-            item = self.queue.get(block=False)
-            if item is not None:
-                comment = item[0]
-                text = self.filter(comment.body)
-                if item[1]:
-                    layer = self.comment_tree.insert('',  tk.END, iid=comment.id, text=text, open=True)
-                    self.after(1, lambda: self.showComments(layer))
-                else:
-                    new_layer = self.comment_tree.insert(layer, tk.END, iid=comment.id, text=text, open=True)
-                    self.after(1, lambda: self.showComments(new_layer))
-        except queue.Empty:
-            self.after(1, lambda: self.showComments(layer))
-
-
-
     def askURL(self):
         url = tk.simpledialog.askstring(title="URL", prompt="Type your URL here")
-        threading.Thread(target=lambda: self.getComments(url)).start()
+        threading.Thread(target=lambda: self.showComments(url)).start()
 
-
-
-    def getComments(self, URL):
+    def showComments(self, URL):
         try:
             print(URL)
             submission = reddit.submission(url=URL)
             submission.comments.replace_more(limit=None)
             for comment in submission.comments:
-                self.queue.put([comment, True])
-                print(comment.body)
-                self.parseComments(comment)
+                text = self.filter(comment.body)
+                layer = self.comment_tree.insert('', tk.END, iid=comment.id, text=text)
+                self.parseComments(comment, layer)
         except:
             tk.messagebox.showerror('Error', 'URL not found')
 
-    def parseComments(self, top_comment):
+    def parseComments(self, top_comment, layer):
         for comment in top_comment.replies:
-            self.queue.put([comment, False])
-            print(comment.body)
-            self.parseComments(comment)
+            text = self.filter(comment.body)
+            sublayer = self.comment_tree.insert(layer, tk.END, iid=comment.id, text=text)
+            self.parseComments(comment, sublayer)
 
     def filter(self, text):
         new_text = ''
@@ -103,7 +79,6 @@ class CommentTreeDisplay(tk.Frame):
             else:
                 new_text = new_text + ' '
         return new_text
-
 
 root = tk.Tk()
 root.state('zoomed')
