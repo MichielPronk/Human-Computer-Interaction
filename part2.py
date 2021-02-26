@@ -25,7 +25,7 @@ class CommentTreeDisplay(tk.Frame):
 
         # Create queue
         self.queue = queue.Queue()
-        self.after(1, self.showComments(0))
+        self.after(1, self.showComments())
 
         # Create a menubar and add it to root
         menubar = tk.Menu(parent)
@@ -54,20 +54,22 @@ class CommentTreeDisplay(tk.Frame):
         self.comment_tree.configure(yscrollcommand=self.scrollbar.set)
         self.scrollbar.pack(side="right", fill="y")
 
-    def showComments(self, layer):
+    def showComments(self):
         try:
             item = self.queue.get(block=False)
             if item is not None:
                 comment = item[0]
                 text = self.filter(comment.body)
+                parent_id = comment.parent_id[3:]
                 if item[1]:
-                    layer = self.comment_tree.insert('',  tk.END, iid=comment.id, text=text, open=True)
-                    self.after(1, lambda: self.showComments(layer))
+                    self.comment_tree.insert('',  tk.END, iid=comment.id, text=text, open=True)
+                    self.after(1, self.showComments)
                 else:
-                    new_layer = self.comment_tree.insert(layer, tk.END, iid=comment.id, text=text, open=True)
-                    self.after(1, lambda: self.showComments(new_layer))
+                    self.comment_tree.insert(parent_id, tk.END, iid=comment.id, text=text, open=True)
+                    self.after(1, self.showComments)
         except queue.Empty:
-            self.after(1, lambda: self.showComments(layer))
+            self.after(1, self.showComments)
+
 
 
 
@@ -79,12 +81,10 @@ class CommentTreeDisplay(tk.Frame):
 
     def getComments(self, URL):
         try:
-            print(URL)
             submission = reddit.submission(url=URL)
             submission.comments.replace_more(limit=None)
             for comment in submission.comments:
                 self.queue.put([comment, True])
-                print(comment.body)
                 self.parseComments(comment)
         except:
             tk.messagebox.showerror('Error', 'URL not found')
@@ -92,7 +92,6 @@ class CommentTreeDisplay(tk.Frame):
     def parseComments(self, top_comment):
         for comment in top_comment.replies:
             self.queue.put([comment, False])
-            print(comment.body)
             self.parseComments(comment)
 
     def filter(self, text):
