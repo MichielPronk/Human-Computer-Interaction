@@ -24,7 +24,7 @@ class CommentTreeDisplay(tk.Frame):
         self.option_add('*tearOff', False)
 
         # Create queue
-        self.queue = queue.Queue()
+        self.c_queue = queue.Queue()
         self.after(1, self.showComments())
 
         # Create a menubar and add it to root
@@ -36,7 +36,7 @@ class CommentTreeDisplay(tk.Frame):
         menubar.add_cascade(menu=menu_file, label='File')
 
         # Add Exit option to File
-        menu_file.add_command(label="Exit", command=quit)
+        menu_file.add_command(label="Exit", command=lambda: self.quit_program(parent))
 
         # Create Processing menu
         menu_processing = tk.Menu(menubar)
@@ -56,7 +56,7 @@ class CommentTreeDisplay(tk.Frame):
 
     def showComments(self):
         try:
-            item = self.queue.get(block=False)
+            item = self.c_queue.get(block=False)
             if item is not None:
                 comment = item[0]
                 text = comment.body.replace("\n", " ")
@@ -79,15 +79,18 @@ class CommentTreeDisplay(tk.Frame):
             submission = reddit.submission(url=URL)
             submission.comments.replace_more(limit=None)
             for comment in submission.comments:
-                self.queue.put([comment, True])
+                self.c_queue.put([comment, True])
                 self.parseComments(comment)
         except:
             tk.messagebox.showerror('Error', 'URL not found')
 
     def parseComments(self, top_comment):
         for comment in top_comment.replies:
-            self.queue.put([comment, False])
+            self.c_queue.put([comment, False])
             self.parseComments(comment)
+
+    def quit_program(self, parent):
+        parent.destroy()
 
 
 root = tk.Tk()
