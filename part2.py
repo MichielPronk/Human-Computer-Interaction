@@ -25,6 +25,7 @@ class CommentTreeDisplay(tk.Frame):
 
         # Create queue
         self.c_queue = queue.Queue()
+        self.url_queue = queue.Queue()
         self.after(1, self.showComments())
 
         # Create a menubar and add it to root
@@ -74,17 +75,24 @@ class CommentTreeDisplay(tk.Frame):
         self.comment_tree.delete(*self.comment_tree.get_children())
         with self.c_queue.mutex:
             self.c_queue.queue.clear()
-        threading.Thread(target=lambda: self.getComments(url)).start()
+        self.url_queue.put(url)
+        threading.Thread(target=self.getComments).start()
 
-    def getComments(self, URL):
+
+    def getComments(self):
         try:
+            URL = self.url_queue.get(block=False)
             submission = reddit.submission(url=URL)
             submission.comments.replace_more(limit=None)
             for comment in submission.comments:
                 self.c_queue.put([comment, True])
                 self.parseComments(comment)
+        except queue.Empty:
+            pass
         except:
             tk.messagebox.showerror('Error', 'URL not found')
+        self.after(100, self.getComments)
+
 
     def parseComments(self, top_comment):
         for comment in top_comment.replies:
