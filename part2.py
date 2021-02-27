@@ -83,9 +83,9 @@ class CommentTreeDisplay(tk.Frame):
 
 
     def getComments(self):
+        print('test')
         try:
             URL = self.url_queue.get(block=False)
-            print('test')
             submission = reddit.submission(url=URL)
             submission.comments.replace_more(limit=None)
             for comment in submission.comments:
@@ -95,7 +95,7 @@ class CommentTreeDisplay(tk.Frame):
             pass
         except:
             tk.messagebox.showerror('Error', 'URL not found')
-        self.after(10000, self.getComments)
+        self.after(1000, self.getComments)
 
 
     def parseComments(self, top_comment):
