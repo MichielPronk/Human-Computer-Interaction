@@ -107,7 +107,6 @@ class IncomingSubmissions(tk.Frame):
         self.b_submit.grid(column=8, row=1, columnspan=1, rowspan=1, sticky='E')
         self.b_delete.grid(column=10, row=1, columnspan=1, rowspan=1, sticky='W')
 
-
     def insertIntoTree(self):
         try:
             submission = self.queue.get(block=False)
@@ -139,28 +138,26 @@ class IncomingSubmissions(tk.Frame):
         else:
             self.is_paused = True
 
-    def sub_exists(self, sub):
+    def subExists(self, sub):
         try:
             reddit.subreddits.search_by_name(sub, exact=True)
         except NotFound:
             return False
         return True
 
-
     def submit(self, color):
         if color == 'W':
             subreddit = self.w_text.get()
             self.w_text.delete(0, tk.END)
-            if self.sub_exists(subreddit):
+            if self.subExists(subreddit):
                 self.white_list.append(subreddit)
                 self.whitelist.insert("", tk.END, text=subreddit, values=subreddit)
         elif color == 'B':
             subreddit = self.b_text.get()
             self.b_text.delete(0, tk.END)
-            if self.sub_exists(subreddit):
+            if self.subExists(subreddit):
                 self.black_list.append(subreddit)
                 self.blacklist.insert("", tk.END, text=subreddit, values=subreddit)
-
 
     def delete(self, color):
         if color == 'W':
@@ -182,8 +179,13 @@ class IncomingSubmissions(tk.Frame):
                 pass
 
 
-root = tk.Tk()
-root.state('zoomed')
-frame = IncomingSubmissions(root)
-frame.startStreaming()
-root.mainloop()
+def main():
+    root = tk.Tk()
+    root.state('zoomed')
+    frame = IncomingSubmissions(root)
+    frame.startStreaming()
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()

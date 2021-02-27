@@ -36,7 +36,7 @@ class CommentTreeDisplay(tk.Frame):
         menubar.add_cascade(menu=menu_file, label='File')
 
         # Add Exit option to File
-        menu_file.add_command(label="Exit", command=lambda: self.quit_program(parent))
+        menu_file.add_command(label="Exit", command=lambda: self.quitProgram(parent))
 
         # Create Processing menu
         menu_processing = tk.Menu(menubar)
@@ -72,6 +72,8 @@ class CommentTreeDisplay(tk.Frame):
     def askURL(self):
         url = tk.simpledialog.askstring(title="URL", prompt="Type your URL here")
         self.comment_tree.delete(*self.comment_tree.get_children())
+        with self.c_queue.mutex:
+            self.c_queue.queue.clear()
         threading.Thread(target=lambda: self.getComments(url)).start()
 
     def getComments(self, URL):
@@ -89,12 +91,17 @@ class CommentTreeDisplay(tk.Frame):
             self.c_queue.put([comment, False])
             self.parseComments(comment)
 
-    def quit_program(self, parent):
+    def quitProgram(self, parent):
         parent.destroy()
 
 
-root = tk.Tk()
-root.state('zoomed')
-frame = CommentTreeDisplay(root)
-frame.pack(fill="both", expand=1)
-root.mainloop()
+def main():
+    root = tk.Tk()
+    root.state('zoomed')
+    frame = CommentTreeDisplay(root)
+    frame.pack(fill="both", expand=1)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
