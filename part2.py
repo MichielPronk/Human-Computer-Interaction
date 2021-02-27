@@ -26,7 +26,6 @@ class CommentTreeDisplay(tk.Frame):
         # Create queue
         self.c_queue = queue.Queue()
         self.url_queue = queue.Queue()
-        self.after(1, self.showComments())
 
         # Create a menubar and add it to root
         menubar = tk.Menu(parent)
@@ -63,12 +62,16 @@ class CommentTreeDisplay(tk.Frame):
                 text = comment.body.replace("\n", " ")
                 if item[1]:
                     self.comment_tree.insert('',  tk.END, iid=comment.id, text=text, open=True)
-                    self.after(1, self.showComments)
                 else:
                     self.comment_tree.insert(comment.parent_id[3:], tk.END, iid=comment.id, text=text, open=True)
-                    self.after(1, self.showComments)
+
+                self.after(1, self.showComments)
         except queue.Empty:
             self.after(1, self.showComments)
+
+    def start_thread(self):
+        threading.Thread(target=self.getComments).start()
+
 
     def askURL(self):
         url = tk.simpledialog.askstring(title="URL", prompt="Type your URL here")
@@ -76,12 +79,13 @@ class CommentTreeDisplay(tk.Frame):
         with self.c_queue.mutex:
             self.c_queue.queue.clear()
         self.url_queue.put(url)
-        threading.Thread(target=self.getComments).start()
+
 
 
     def getComments(self):
         try:
             URL = self.url_queue.get(block=False)
+            print('test')
             submission = reddit.submission(url=URL)
             submission.comments.replace_more(limit=None)
             for comment in submission.comments:
@@ -91,7 +95,7 @@ class CommentTreeDisplay(tk.Frame):
             pass
         except:
             tk.messagebox.showerror('Error', 'URL not found')
-        self.after(100, self.getComments)
+        self.after(10000, self.getComments)
 
 
     def parseComments(self, top_comment):
@@ -107,6 +111,8 @@ def main():
     root = tk.Tk()
     root.state('zoomed')
     frame = CommentTreeDisplay(root)
+    frame.showComments()
+    frame.start_thread()
     frame.pack(fill="both", expand=1)
     root.mainloop()
 
