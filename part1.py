@@ -110,7 +110,7 @@ class IncomingSubmissions(tk.Frame):
         try:
             submission = self.queue.get(block=False)
             if submission is not None and not self.is_paused:
-                self.tree.insert("", 0, text='Submission', values=(submission[0], submission[1]))
+                self.tree.insert("", 0, text='Submission', iid=submission.id, values=(submission.subreddit, submission.title))
         except queue.Empty:
             pass
         self.after(int(self.speedbar.get() * 100), self.insertIntoTree)
@@ -123,12 +123,12 @@ class IncomingSubmissions(tk.Frame):
             if not self.is_paused:
                 if self.white_list and not self.black_list:
                     if submission.subreddit in self.white_list:
-                        self.queue.put([submission.subreddit, submission.title])
+                        self.queue.put(submission)
                 elif self.black_list and not self.white_list:
                     if submission.subreddit not in self.black_list:
-                        self.queue.put([submission.subreddit, submission.title])
+                        self.queue.put(submission)
                 elif not self.black_list and not self.white_list:
-                    self.queue.put([submission.subreddit, submission.title])
+                    self.queue.put(submission)
                 time.sleep(int(self.speedbar.get())/10)
 
     def pause(self):

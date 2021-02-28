@@ -22,6 +22,7 @@ class ResponseCommentTreeDisplay(CommentTreeDisplay):
         self.reply_queue = queue.Queue()
 
     def doubleClick(self, event):
+        print(self.comment_tree.selection())
         comment_id = self.comment_tree.selection()[0]
         reply = tk.simpledialog.askstring(title="Reply", prompt="Type your reply here")
         if reply != "" and reply is not None:

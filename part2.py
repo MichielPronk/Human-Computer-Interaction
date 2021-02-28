@@ -5,6 +5,7 @@ from tkinter import simpledialog, messagebox
 import threading
 import queue
 import time
+
 from praw.exceptions import InvalidURL
 
 reddit = praw.Reddit(
@@ -33,22 +34,23 @@ class CommentTreeDisplay(tk.Frame):
         self.url_queue = queue.Queue()
 
         # Create a menubar and add it to root
-        self.menubar = tk.Menu(parent)
-        parent.config(menu=self.menubar)
+        if not isinstance(parent, ttk.Notebook):
+            self.menubar = tk.Menu(parent)
+            parent.config(menu=self.menubar)
 
-        # Create File menu
-        self.menu_file = tk.Menu(self.menubar)
-        self.menubar.add_cascade(menu=self.menu_file, label='File')
+            # Create File menu
+            self.menu_file = tk.Menu(self.menubar)
+            self.menubar.add_cascade(menu=self.menu_file, label='File')
 
-        # Add Exit option to File
-        self.menu_file.add_command(label="Exit", command=lambda: self.quitProgram(parent))
+            # Add Exit option to File
+            self.menu_file.add_command(label="Exit", command=lambda: self.quitProgram(parent))
 
-        # Create Processing menu
-        self.menu_processing = tk.Menu(self.menubar)
-        self.menubar.add_cascade(menu=self.menu_processing, label='Processing')
+            # Create Processing menu
+            self.menu_processing = tk.Menu(self.menubar)
+            self.menubar.add_cascade(menu=self.menu_processing, label='Processing')
 
-        # Add Load comments option to Processing
-        self.menu_processing.add_command(label="Load comments", command=self.askURL)
+            # Add Load comments option to Processing
+            self.menu_processing.add_command(label="Load comments", command=self.askURL)
 
         # Initialize Treeview
         self.comment_tree = ttk.Treeview(self)
@@ -66,7 +68,7 @@ class CommentTreeDisplay(tk.Frame):
                 comment = item[0]
                 text = comment.body.replace("\n", " ")
                 if item[1]:
-                    self.comment_tree.insert('',  tk.END, iid=comment.id, text=text, open=True)
+                    self.comment_tree.insert('', tk.END, iid=comment.id, text=text, open=True)
                 else:
                     self.comment_tree.insert(comment.parent_id[3:], tk.END, iid=comment.id, text=text, open=True)
                 self.after(50, self.showComments)
