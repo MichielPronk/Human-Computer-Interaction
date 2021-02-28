@@ -41,7 +41,6 @@ class IncomingSubmissions(tk.Frame):
         # Initialize pause button
         self.is_paused = False
         self.pause = tk.Button(self, text="Pause", command=self.pause)
-        # self.pause.pack(side="top")
 
         # Initialize scale bar
         self.speed = tk.IntVar()

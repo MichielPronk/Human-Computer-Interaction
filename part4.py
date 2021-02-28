@@ -1,8 +1,14 @@
 import praw
 import threading
 import tkinter as tk
+import praw
+import tkinter as tk
+import tkinter.ttk as ttk
+from tkinter import simpledialog, messagebox
+import threading
 import queue
 import time
+from praw.exceptions import InvalidURL
 from part3 import ResponseCommentTreeDisplay
 
 reddit = praw.Reddit(
@@ -17,8 +23,40 @@ reddit = praw.Reddit(
 class UpdatedTreeDisplay(ResponseCommentTreeDisplay):
     def __init__(self, parent):
         ResponseCommentTreeDisplay.__init__(self, parent)
+        self.comment_set = set()
+        self.old_comment_set = set()
+
+        # Initialize scale bar
+        self.speed = tk.IntVar()
+        self.speed.set(int(5))
+        self.speedbar = tk.Scale(self, from_=5, to=50, resolution=1, orient=tk.HORIZONTAL, variable=self.speed)
+        self.speedbar.pack(side="top")
+
+    def startComparing(self):
+        threading.Thread(target=self.compareComments).start()
 
     def compareComments(self):
+        while True:
+            self.old_comment_set = self.comment_set
+            self.comment_set = set()
+            try:
+                submission = reddit.submission(url=self.submission_url)
+                submission.comments.replace_more(limit=None)
+                for comment in submission.comments:
+                    self.comment_set.add(comment.id)
+                    self.parseCommentsCheck(comment)
+                if self.comment_set != self.old_comment_set:
+                    self.url_queue.put(self.submission_url)
+            except InvalidURL:
+                pass
+            except ValueError:
+                pass
+            time.sleep(self.speed.get())
+
+    def parseCommentsCheck(self, top_comment):
+        for comment in top_comment.replies:
+            self.comment_set.add(comment.id)
+            self.parseCommentsCheck(comment)
 
 
 def main():
@@ -26,7 +64,9 @@ def main():
     root.state('zoomed')
     frame = UpdatedTreeDisplay(root)
     frame.showComments()
-    frame.getComments()
+    frame.startReceiving()
+    frame.startProcessing()
+    frame.startComparing()
     frame.pack(fill="both", expand=1)
     root.mainloop()
 

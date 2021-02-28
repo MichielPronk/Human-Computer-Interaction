@@ -25,27 +25,30 @@ class CommentTreeDisplay(tk.Frame):
         # Makes sure each menu does not appear as its own window
         self.option_add('*tearOff', False)
 
+        # Create variables
+        self.submission_url = ""
+
         # Create queue
         self.c_queue = queue.Queue()
         self.url_queue = queue.Queue()
 
         # Create a menubar and add it to root
-        menubar = tk.Menu(parent)
-        parent['menu'] = menubar
+        self.menubar = tk.Menu(parent)
+        parent.config(menu=self.menubar)
 
         # Create File menu
-        menu_file = tk.Menu(menubar)
-        menubar.add_cascade(menu=menu_file, label='File')
+        self.menu_file = tk.Menu(self.menubar)
+        self.menubar.add_cascade(menu=self.menu_file, label='File')
 
         # Add Exit option to File
-        menu_file.add_command(label="Exit", command=lambda: self.quitProgram(parent))
+        self.menu_file.add_command(label="Exit", command=lambda: self.quitProgram(parent))
 
         # Create Processing menu
-        menu_processing = tk.Menu(menubar)
-        menubar.add_cascade(menu=menu_processing, label='Processing')
+        self.menu_processing = tk.Menu(self.menubar)
+        self.menubar.add_cascade(menu=self.menu_processing, label='Processing')
 
         # Add Load comments option to Processing
-        menu_processing.add_command(label="Load comments", command=self.askURL)
+        self.menu_processing.add_command(label="Load comments", command=self.askURL)
 
         # Initialize Treeview
         self.comment_tree = ttk.Treeview(self)
@@ -66,34 +69,39 @@ class CommentTreeDisplay(tk.Frame):
                     self.comment_tree.insert('',  tk.END, iid=comment.id, text=text, open=True)
                 else:
                     self.comment_tree.insert(comment.parent_id[3:], tk.END, iid=comment.id, text=text, open=True)
-
-                self.after(1, self.showComments)
+                self.after(50, self.showComments)
         except queue.Empty:
-            self.after(1, self.showComments)
+            self.after(50, self.showComments)
 
     def startReceiving(self):
         threading.Thread(target=self.getComments).start()
 
     def askURL(self):
         try:
-            submission_url = tk.simpledialog.askstring(title="URL", prompt="Type your URL here")
-            reddit.submission(url=submission_url)
-            self.comment_tree.delete(*self.comment_tree.get_children())
-            self.c_queue.queue.clear()
-            self.url_queue.put(submission_url)
+            user_input = tk.simpledialog.askstring(title="URL", prompt="Type your URL here")
+            if user_input != "":
+                reddit.submission(url=user_input)
+                self.submission_url = user_input
+                self.url_queue.put(self.submission_url)
         except InvalidURL:
             tk.messagebox.showerror('Error', "URL does not exist")
+        except TypeError:
+            pass
 
     def getComments(self):
         while True:
             try:
                 submission_url = self.url_queue.get(block=False)
                 submission = reddit.submission(url=submission_url)
+                self.c_queue.queue.clear()
+                self.comment_tree.delete(*self.comment_tree.get_children())
                 submission.comments.replace_more(limit=None)
                 for comment in submission.comments:
                     self.c_queue.put([comment, True])
                     self.parseComments(comment)
             except queue.Empty:
+                pass
+            except InvalidURL:
                 pass
             time.sleep(1)
 

@@ -24,10 +24,10 @@ class ResponseCommentTreeDisplay(CommentTreeDisplay):
     def doubleClick(self, event):
         comment_id = self.comment_tree.selection()[0]
         reply = tk.simpledialog.askstring(title="Reply", prompt="Type your reply here")
-        if reply == "":
-            tk.messagebox.showerror('Error', 'Reply is empty')
-        else:
+        if reply != "" and reply is not None:
             self.reply_queue.put([comment_id, reply])
+        else:
+            tk.messagebox.showerror('Error', 'Something went wrong')
 
     def startProcessing(self):
         threading.Thread(target=self.processComments).start()
