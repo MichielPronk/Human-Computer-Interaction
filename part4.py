@@ -2,6 +2,7 @@ import praw
 import threading
 import tkinter as tk
 import queue
+import time
 from part3 import ResponseCommentTreeDisplay
 
 reddit = praw.Reddit(
@@ -17,14 +18,15 @@ class UpdatedTreeDisplay(ResponseCommentTreeDisplay):
     def __init__(self, parent):
         ResponseCommentTreeDisplay.__init__(self, parent)
 
-
+    def compareComments(self):
 
 
 def main():
     root = tk.Tk()
     root.state('zoomed')
     frame = UpdatedTreeDisplay(root)
-    threading.Thread(target=frame.processComments).start()
+    frame.showComments()
+    frame.getComments()
     frame.pack(fill="both", expand=1)
     root.mainloop()
 
