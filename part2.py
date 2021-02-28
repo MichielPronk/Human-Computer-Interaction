@@ -4,6 +4,7 @@ import tkinter.ttk as ttk
 from tkinter import simpledialog, messagebox
 import threading
 import queue
+import time
 
 reddit = praw.Reddit(
     client_id="kXHM-WcuSy2pDQ",
@@ -72,7 +73,6 @@ class CommentTreeDisplay(tk.Frame):
     def start_thread(self):
         threading.Thread(target=self.getComments).start()
 
-
     def askURL(self):
         url = tk.simpledialog.askstring(title="URL", prompt="Type your URL here")
         self.comment_tree.delete(*self.comment_tree.get_children())
@@ -80,23 +80,20 @@ class CommentTreeDisplay(tk.Frame):
             self.c_queue.queue.clear()
         self.url_queue.put(url)
 
-
-
     def getComments(self):
-        print('test')
-        try:
-            URL = self.url_queue.get(block=False)
-            submission = reddit.submission(url=URL)
-            submission.comments.replace_more(limit=None)
-            for comment in submission.comments:
-                self.c_queue.put([comment, True])
-                self.parseComments(comment)
-        except queue.Empty:
-            pass
-        except:
-            tk.messagebox.showerror('Error', 'URL not found')
-        self.after(1000, self.getComments)
-
+        while True:
+            try:
+                URL = self.url_queue.get(block=False)
+                submission = reddit.submission(url=URL)
+                submission.comments.replace_more(limit=None)
+                for comment in submission.comments:
+                    self.c_queue.put([comment, True])
+                    self.parseComments(comment)
+            except queue.Empty:
+                pass
+            except:
+                tk.messagebox.showerror('Error', 'URL not found')
+            time.sleep(1)
 
     def parseComments(self, top_comment):
         for comment in top_comment.replies:
