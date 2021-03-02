@@ -97,19 +97,23 @@ class IncomingSubmissions(tk.Frame):
         self.b_delete.grid(column=10, row=1, columnspan=1, rowspan=1, sticky='W')
 
     def insertIntoTree(self):
+        """Inserts queue items in the treeview"""
         try:
             submission = self.queue.get(block=False)
             if submission is not None and not self.is_paused:
-                self.tree.insert("", 0, text='Submission', iid=submission.id, values=(submission.subreddit, submission.title))
+                self.tree.insert("", 0, text='Submission', iid=submission.id,
+                                 values=(submission.subreddit, submission.title))
         except queue.Empty:
             pass
         self.after(int(self.speedbar.get() * 100), self.insertIntoTree)
 
     def startStreaming(self):
+        """Starts thread of addSubmissionsToQueue"""
         threading.Thread(target=self.addSubmissionsToQueue).start()
 
     def addSubmissionsToQueue(self):
-        """P"""
+        """Collects incoming submissions and
+        puts them in the queue if requirements are met"""
         for submission in reddit.subreddit('all').stream.submissions():
             if not self.is_paused:
                 if self.white_list and not self.black_list:
@@ -123,12 +127,14 @@ class IncomingSubmissions(tk.Frame):
                 time.sleep(int(self.speedbar.get())/10)
 
     def pause(self):
+        """Pauses the incoming stream of submissions"""
         if self.is_paused:
             self.is_paused = False
         else:
             self.is_paused = True
 
     def subExists(self, sub):
+        """Checks if subreddit from the black-or whitelist exists"""
         try:
             reddit.subreddits.search_by_name(sub, exact=True)
         except NotFound:
@@ -136,6 +142,7 @@ class IncomingSubmissions(tk.Frame):
         return True
 
     def submit(self, color):
+        """Adds item to black-or whitelist"""
         if color == 'W':
             subreddit = self.w_text.get()
             self.w_text.delete(0, tk.END)
@@ -150,13 +157,14 @@ class IncomingSubmissions(tk.Frame):
                 self.blacklist.insert("", tk.END, text=subreddit, values=subreddit)
 
     def delete(self, color):
+        """Deletes selected item from black-or whitelist"""
         if color == 'W':
             row_id = self.whitelist.focus()
             node_name = self.whitelist.item(row_id)['text']
             try:
                 self.whitelist.delete(row_id)
                 self.white_list.remove(node_name)
-            except:
+            except tk.TclError:
                 pass
 
         elif color == 'B':
@@ -165,7 +173,7 @@ class IncomingSubmissions(tk.Frame):
             try:
                 self.blacklist.delete(row_id)
                 self.black_list.remove(node_name)
-            except:
+            except tk.TclError:
                 pass
 
 

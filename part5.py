@@ -4,10 +4,10 @@ import tkinter.ttk as ttk
 import threading
 import queue
 import time
-
 from part1 import IncomingSubmissions
 from part3 import ResponseCommentTreeDisplay
 
+# Connects to reddit with bot account
 reddit = praw.Reddit(
     client_id="kXHM-WcuSy2pDQ",
     client_secret="KsixoG3bUwXCnJw5K8PASkaxumX-EQ",
@@ -42,7 +42,6 @@ class IncomingSubmissionsAdvanced(tk.Frame):
 
         # Initialize incoming submission frame
         self.incoming_submissions = IncomingSubmissions(self)
-        self.incoming_submissions.startStreaming()
         self.incoming_submissions.tree.bind("<Double-1>", self.detectClick)
 
         # Initialize notebook
@@ -86,13 +85,16 @@ class IncomingSubmissionsAdvanced(tk.Frame):
         self.notebook.grid(column=2, row=0, columnspan=1, rowspan=1, sticky='NESW')
 
     def detectClick(self, event):
+        """Puts id of submission in queue when double-clicked"""
         submission_id = self.incoming_submissions.tree.selection()[0]
         self.id_queue.put(submission_id)
 
     def startDetecting(self):
+        """Start selectSubmission thread"""
         threading.Thread(target=self.selectSubmission).start()
 
     def selectSubmission(self):
+        """Puts comments tree of selected comment on active tab"""
         while True:
             try:
                 submission_id = self.id_queue.get(block=False)
@@ -100,7 +102,6 @@ class IncomingSubmissionsAdvanced(tk.Frame):
                 submission_url = submission.permalink
                 active_tab_id = self.notebook.select()
                 active_tab = self.notebook.index(active_tab_id)
-                print("https://reddit.com" + submission_url)
                 if active_tab == 0:
                     self.response1.url_queue.put("https://reddit.com" + submission_url)
                 elif active_tab == 1:
@@ -112,6 +113,7 @@ class IncomingSubmissionsAdvanced(tk.Frame):
             time.sleep(0.5)
 
     def quitProgram(self, parent):
+        """Stops program"""
         parent.destroy()
 
 
@@ -119,6 +121,8 @@ def main():
     root = tk.Tk()
     root.state('zoomed')
     frame = IncomingSubmissionsAdvanced(root)
+    frame.incoming_submissions.insertIntoTree()
+    frame.incoming_submissions.startStreaming()
     frame.startDetecting()
     root.mainloop()
 

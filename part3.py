@@ -6,6 +6,7 @@ from tkinter import simpledialog, messagebox
 import queue
 import threading
 
+# Connects to reddit with bot account
 reddit = praw.Reddit(
     client_id="kXHM-WcuSy2pDQ",
     client_secret="KsixoG3bUwXCnJw5K8PASkaxumX-EQ",
@@ -18,10 +19,15 @@ reddit = praw.Reddit(
 class ResponseCommentTreeDisplay(CommentTreeDisplay):
     def __init__(self, parent):
         CommentTreeDisplay.__init__(self, parent)
+
+        # Binds double click event to treeview
         self.comment_tree.bind("<Double-1>", self.doubleClick)
+
+        # Initializes queue for replies
         self.reply_queue = queue.Queue()
 
     def doubleClick(self, event):
+        """Prompts user for reply to selected comment and puts them in the reply queue"""
         print(self.comment_tree.selection())
         comment_id = self.comment_tree.selection()[0]
         reply = tk.simpledialog.askstring(title="Reply", prompt="Type your reply here")
@@ -31,9 +37,11 @@ class ResponseCommentTreeDisplay(CommentTreeDisplay):
             tk.messagebox.showerror('Error', 'Something went wrong')
 
     def startProcessing(self):
+        """Start processComments thread"""
         threading.Thread(target=self.processComments).start()
 
     def processComments(self):
+        """Takes replies from queue and posts them to the right comment"""
         while True:
             try:
                 item = self.reply_queue.get(block=False)

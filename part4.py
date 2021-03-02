@@ -5,6 +5,7 @@ import time
 from praw.exceptions import InvalidURL
 from part3 import ResponseCommentTreeDisplay
 
+# Connects to reddit with bot account
 reddit = praw.Reddit(
     client_id="kXHM-WcuSy2pDQ",
     client_secret="KsixoG3bUwXCnJw5K8PASkaxumX-EQ",
@@ -17,6 +18,8 @@ reddit = praw.Reddit(
 class UpdatedTreeDisplay(ResponseCommentTreeDisplay):
     def __init__(self, parent):
         ResponseCommentTreeDisplay.__init__(self, parent)
+
+        # Initializes sets for checking comments
         self.comment_set = set()
         self.old_comment_set = set()
 
@@ -27,9 +30,11 @@ class UpdatedTreeDisplay(ResponseCommentTreeDisplay):
         self.speedbar.pack(side="top")
 
     def startComparing(self):
+        """Start compareComments thread"""
         threading.Thread(target=self.compareComments).start()
 
     def compareComments(self):
+        """Takes url from queue and checks if the comments are different from the previous iteration"""
         while True:
             self.old_comment_set = self.comment_set
             self.comment_set = set()
@@ -48,6 +53,7 @@ class UpdatedTreeDisplay(ResponseCommentTreeDisplay):
             time.sleep(self.speed.get())
 
     def parseCommentsCheck(self, top_comment):
+        """Gets all nested comments from submission"""
         for comment in top_comment.replies:
             self.comment_set.add(comment.id)
             self.parseCommentsCheck(comment)

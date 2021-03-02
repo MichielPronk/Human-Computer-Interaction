@@ -5,9 +5,9 @@ from tkinter import simpledialog, messagebox
 import threading
 import queue
 import time
-
 from praw.exceptions import InvalidURL
 
+# Connect to reddit with bot account
 reddit = praw.Reddit(
     client_id="kXHM-WcuSy2pDQ",
     client_secret="KsixoG3bUwXCnJw5K8PASkaxumX-EQ",
@@ -26,7 +26,7 @@ class CommentTreeDisplay(tk.Frame):
         # Makes sure each menu does not appear as its own window
         self.option_add('*tearOff', False)
 
-        # Create variables
+        # Create url variable
         self.submission_url = ""
 
         # Create queue
@@ -62,6 +62,7 @@ class CommentTreeDisplay(tk.Frame):
         self.scrollbar.pack(side="right", fill="y")
 
     def showComments(self):
+        """Adds comment from queue to the treeview"""
         try:
             item = self.c_queue.get(block=False)
             if item is not None:
@@ -76,9 +77,11 @@ class CommentTreeDisplay(tk.Frame):
             self.after(50, self.showComments)
 
     def startReceiving(self):
+        """Start getComments thread"""
         threading.Thread(target=self.getComments).start()
 
     def askURL(self):
+        """Prompts user to enter url and adds this to the url queue"""
         try:
             user_input = tk.simpledialog.askstring(title="URL", prompt="Type your URL here")
             if user_input != "":
@@ -91,6 +94,7 @@ class CommentTreeDisplay(tk.Frame):
             pass
 
     def getComments(self):
+        """Takes url from queue and puts comments of submission into queue"""
         while True:
             try:
                 submission_url = self.url_queue.get(block=False)
@@ -108,11 +112,13 @@ class CommentTreeDisplay(tk.Frame):
             time.sleep(1)
 
     def parseComments(self, top_comment):
+        """Extracts all nested comments from submission and put them in the queue"""
         for comment in top_comment.replies:
             self.c_queue.put([comment, False])
             self.parseComments(comment)
 
     def quitProgram(self, parent):
+        """Stops the program"""
         parent.destroy()
 
 
