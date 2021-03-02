@@ -1,12 +1,6 @@
 import praw
-import threading
 import tkinter as tk
-import praw
-import tkinter as tk
-import tkinter.ttk as ttk
-from tkinter import simpledialog, messagebox
 import threading
-import queue
 import time
 from praw.exceptions import InvalidURL
 from part3 import ResponseCommentTreeDisplay

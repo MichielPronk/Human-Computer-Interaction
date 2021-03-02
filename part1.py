@@ -6,7 +6,7 @@ import time
 import queue
 import threading
 
-
+# Connect to reddit with bot account
 reddit = praw.Reddit(
     client_id="kXHM-WcuSy2pDQ",
     client_secret="KsixoG3bUwXCnJw5K8PASkaxumX-EQ",
@@ -18,8 +18,6 @@ reddit = praw.Reddit(
 
 class IncomingSubmissions(tk.Frame):
     def __init__(self, parent):
-        self.screen_width = parent.winfo_screenwidth()
-        self.screen_height = parent.winfo_screenheight()
         tk.Frame.__init__(self, parent)
 
         # Initialize Treeview
@@ -34,15 +32,11 @@ class IncomingSubmissions(tk.Frame):
         # Only show column headers
         self.tree['show'] = 'headings'
 
-        # Initialize scrollbar
-        self.scrollbar = tk.Scrollbar(self.tree, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=self.scrollbar.set)
-
         # Initialize pause button
         self.is_paused = False
         self.pause = tk.Button(self, text="Pause", command=self.pause)
 
-        # Initialize scale bar
+        # Initialize speed bar bar
         self.speed = tk.IntVar()
         self.speed.set(int(1))
         self.speedbar = tk.Scale(self, from_=1, to=10, resolution=1, orient=tk.HORIZONTAL, variable=self.speed)
@@ -50,25 +44,21 @@ class IncomingSubmissions(tk.Frame):
         # Initialize queue
         self.queue = queue.Queue()
 
-        self.after(100, self.insertIntoTree)
-
-        # Initialize whitelist and blacklist list
-        self.white_list = []
-        self.black_list = []
-
         # Initialize whitelist
+        self.white_list = []
         self.whitelist = ttk.Treeview(self, columns='1')
         self.whitelist.heading("1", text="Whitelist")
         self.whitelist.column("1")
         self.whitelist['show'] = 'headings'
 
         # Initialize blacklist
+        self.black_list = []
         self.blacklist = ttk.Treeview(self, columns='1')
         self.blacklist.heading("1", text="Blacklist")
         self.blacklist.column("1")
         self.blacklist['show'] = 'headings'
 
-        # Initialize input whitelist
+        # Initialize entry fields and submit/delete buttons
         self.list_frame = tk.Frame(self)
         self.w_text = tk.Entry(self.list_frame)
         self.w_submit = tk.Button(self.list_frame, text='Submit', command=lambda: self.submit('W'))
@@ -119,6 +109,7 @@ class IncomingSubmissions(tk.Frame):
         threading.Thread(target=self.addSubmissionsToQueue).start()
 
     def addSubmissionsToQueue(self):
+        """P"""
         for submission in reddit.subreddit('all').stream.submissions():
             if not self.is_paused:
                 if self.white_list and not self.black_list:
@@ -182,6 +173,7 @@ def main():
     root = tk.Tk()
     root.state('zoomed')
     frame = IncomingSubmissions(root)
+    frame.insertIntoTree()
     frame.startStreaming()
     root.mainloop()
 
