@@ -1,7 +1,7 @@
 import praw
 import tkinter as tk
 import time
-from part2 import CommentTreeDisplay
+from RedditAPI.part2 import CommentTreeDisplay
 from tkinter import simpledialog, messagebox
 import queue
 import threading

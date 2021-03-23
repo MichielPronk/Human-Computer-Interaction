@@ -3,7 +3,7 @@ import tkinter as tk
 import threading
 import time
 from praw.exceptions import InvalidURL
-from part3 import ResponseCommentTreeDisplay
+from RedditAPI.part3 import ResponseCommentTreeDisplay
 
 # Connects to reddit with bot account
 reddit = praw.Reddit(

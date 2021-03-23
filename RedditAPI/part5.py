@@ -4,8 +4,8 @@ import tkinter.ttk as ttk
 import threading
 import queue
 import time
-from part1 import IncomingSubmissions
-from part3 import ResponseCommentTreeDisplay
+from RedditAPI.part1 import IncomingSubmissions
+from RedditAPI.part3 import ResponseCommentTreeDisplay
 
 # Connects to reddit with bot account
 reddit = praw.Reddit(
