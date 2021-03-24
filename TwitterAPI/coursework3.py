@@ -1,8 +1,6 @@
 import tweepy
 import tkinter as tk
 import tkinter.ttk as ttk
-import threading
-import time
 
 
 class MainProgram(tk.Frame):
