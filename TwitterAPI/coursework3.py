@@ -93,6 +93,11 @@ class TweetExtractor(tk.Frame):
         credentials.append(lines[3].split(":")[1])
         return credentials
 
+    def startStream(self):
+        myStreamListener = MyStreamListener()
+        myStream = tweepy.Stream(auth=self.api.auth, listener=myStreamListener)
+        myStream.filter(track=['python'])
+
 
 class SentimentAnalysis(tk.Frame):
     def __init__(self, parent):
@@ -116,10 +121,17 @@ class SentimentAnalysis(tk.Frame):
     def openFile(self):
         print("Open file")
 
+
+class MyStreamListener(tweepy.StreamListener):
+
+    def on_status(self, status):
+        print(status.text)
+
 def main():
     root = tk.Tk()
     root.state('zoomed')
     frame = MainProgram(root)
+    frame.tweet_extractor.startStream()
     root.mainloop()
 
 
