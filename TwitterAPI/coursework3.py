@@ -59,6 +59,7 @@ class MainProgram(tk.Frame):
 
     def quitProgram(self, parent):
         """Stops the program"""
+        self.tweet_extractor.myStream.disconnect()
         parent.destroy()
 
 
@@ -238,6 +239,9 @@ class TweetExtractor(tk.Frame):
                 self.stream_button_text.set("Stop stream")
         else:
             self.is_paused = True
+            self.convo_queue.queue.clear()
+            self.myStreamListener.tweet_queue.queue.clear()
+            self.conversation_tree.delete(*self.conversation_tree.get_children())
             self.delete_button.config(state=tk.NORMAL)
             self.filter_bar.config(state=tk.NORMAL)
             self.filter_bar.delete(0, tk.END)
@@ -337,17 +341,17 @@ class TweetExtractor(tk.Frame):
                     except tweepy.error.TweepError:
                         break
                 if 2 < len(conversation) < 11:
+
                     self.convo_queue.put(conversation)
 
     def insertConversations(self):
         try:
             conversation = self.convo_queue.get(block=False)
             if conversation is not None:
-                print(conversation)
-                self.conversation_tree.insert('', tk.END, iid=conversation[0][1], text=conversation[0][0], open=True)
+                self.conversation_tree.insert('', tk.END, iid=conversation[0][1], text=conversation[0][0].replace('\n', ' '), open=True)
                 parent_id = conversation[0][1]
                 for i in range(1, len(conversation)):
-                    self.conversation_tree.insert(parent_id, tk.END, iid=conversation[i][1], text=conversation[i][0])
+                    self.conversation_tree.insert(parent_id, tk.END, iid=conversation[i][1], text=conversation[i][0].replace('\n', ' '))
         except queue.Empty:
             pass
         self.after(100, self.insertConversations)
@@ -398,7 +402,7 @@ def main():
     root.state('zoomed')
     frame = MainProgram(root)
     frame.tweet_extractor.startStream()
-    frame.tweet_extractor.startLocationChecker()
+    #frame.tweet_extractor.startLocationChecker()
     frame.tweet_extractor.startProcessingTweets()
     frame.tweet_extractor.insertConversations()
     root.mainloop()
