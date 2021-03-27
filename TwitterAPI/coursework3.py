@@ -77,6 +77,14 @@ class TweetExtractor(tk.Frame):
         auth.set_access_token(credentials[2], credentials[3])
         self.api = tweepy.API(auth)
 
+        # Initialize stream listener
+        self.myStreamListener = MyStreamListener()
+        self.myStream = tweepy.Stream(auth=self.api.auth, listener=self.myStreamListener)
+
+        # Initialize conversation queue
+        self.convo_queue = queue.Queue()
+
+
         # Create stream frame
         self.conversation_tree = ttk.Treeview(self)
 
@@ -91,7 +99,7 @@ class TweetExtractor(tk.Frame):
         self.stream_button.config(font='Helvetica 20')
 
         # Create drop down menu
-        self.option_list = ['English', 'Spanish', 'Italian', 'French', 'Japanese', 'Russian', 'Tamil']
+        self.option_list = ['English', 'Spanish', 'Italian', 'French', 'Japanese', 'Russian', 'Tamil', 'Dutch']
         self.option = tk.StringVar(self)
         self.option.set(self.option_list[0])
         self.language_menu = tk.OptionMenu(self.control_panel, self.option, *self.option_list)
@@ -191,7 +199,7 @@ class TweetExtractor(tk.Frame):
 
     def getCredentials(self):
         credentials = []
-        with open("credentials2", "r") as infile:
+        with open("credentials3", "r") as infile:
             lines = infile.readlines()
         credentials.append(lines[0].strip().split(":")[1])
         credentials.append(lines[1].strip().split(":")[1])
@@ -203,18 +211,18 @@ class TweetExtractor(tk.Frame):
         threading.Thread(target=self.twitterStream).start()
 
     def twitterStream(self):
-        myStreamListener = MyStreamListener()
-        myStream = tweepy.Stream(auth=self.api.auth, listener=myStreamListener)
         while True:
-            if myStream.running and self.is_paused:
-                myStream.disconnect()
-            elif not myStream.running and not self.is_paused:
+            if self.myStream.running and self.is_paused:
+                self.myStream.disconnect()
+            elif not self.myStream.running and not self.is_paused:
                 language = self.getLanguage()
                 location = self.getLocation()
                 if location is None:
-                    myStream.filter(is_async=True, track=self.filter_list_internal, languages=[language])
+                    self.myStream.filter(is_async=True, track=self.filter_list_internal, languages=[language])
                 else:
-                    myStream.filter(is_async=True, track=self.filter_list_internal, languages=[language], locations=location)
+                    print('locatie aan')
+                    self.myStream.filter(is_async=True, track=self.filter_list_internal, languages=[language],
+                                         locations=location)
 
     def start_stop(self):
         if self.is_paused:
@@ -302,7 +310,7 @@ class TweetExtractor(tk.Frame):
     def getLanguage(self):
         selected = self.option.get()
         codes = {'English': 'en', 'Italian': 'it', 'French': 'fr', 'Spanish': 'es', 'Russian': 'ru', 'Japanese': 'jp',
-                 'Tamil': 'ta'}
+                 'Tamil': 'ta', 'Dutch': 'nl'}
         return codes[selected]
 
     def getLocation(self):
@@ -311,7 +319,55 @@ class TweetExtractor(tk.Frame):
         else:
             east_west = self.radius.get() * 1000 * 0.5 / 0.999984984 / 111111
             north_south = self.radius.get() * 1000 * 0.866025 / 111111
-            return [self.longitude - north_south - east_west, self.latitude - north_south - east_west, self.longitude + north_south + east_west, self.latitude + north_south + east_west]
+            return [self.longitude - north_south - east_west, self.latitude - north_south - east_west,
+                    self.longitude + north_south + east_west, self.latitude + north_south + east_west]
+
+    def startProcessingTweets(self):
+        threading.Thread(target=self.processTweets).start()
+
+    def processTweets(self):
+        while True:
+            tweet = self.myStreamListener.getfromQueue()
+            if tweet is not None:
+                conversation = [(tweet.text, tweet.id)]
+                while tweet.in_reply_to_status_id is not None:
+                    try:
+                        tweet = self.api.get_status(tweet.in_reply_to_status_id)
+                        conversation.insert(0, (tweet.text, tweet.id))
+                    except tweepy.error.TweepError:
+                        break
+                if 2 < len(conversation) < 11:
+                    self.convo_queue.put(conversation)
+
+    def insertConversations(self):
+        try:
+            conversation = self.convo_queue.get(block=False)
+            if conversation is not None:
+                print(conversation)
+                self.conversation_tree.insert('', tk.END, iid=conversation[0][1], text=conversation[0][0], open=True)
+                parent_id = conversation[0][1]
+                for i in range(1, len(conversation)):
+                    self.conversation_tree.insert(parent_id, tk.END, iid=conversation[i][1], text=conversation[i][0])
+        except queue.Empty:
+            pass
+        self.after(100, self.insertConversations)
+
+
+class MyStreamListener(tweepy.StreamListener):
+    def __init__(self):
+        tweepy.StreamListener.__init__(self)
+        self.tweet_queue = queue.Queue()
+
+    def getfromQueue(self):
+        try:
+            tweet = self.tweet_queue.get(block=False)
+            return tweet
+        except queue.Empty:
+            pass
+
+    def on_status(self, tweet):
+        if tweet.in_reply_to_status_id is not None:
+            self.tweet_queue.put(tweet)
 
 
 class SentimentAnalysis(tk.Frame):
@@ -337,17 +393,14 @@ class SentimentAnalysis(tk.Frame):
         print("Open file")
 
 
-class MyStreamListener(tweepy.StreamListener):
-    def on_status(self, tweet):
-        print(tweet.text)
-
-
 def main():
     root = tk.Tk()
     root.state('zoomed')
     frame = MainProgram(root)
     frame.tweet_extractor.startStream()
     frame.tweet_extractor.startLocationChecker()
+    frame.tweet_extractor.startProcessingTweets()
+    frame.tweet_extractor.insertConversations()
     root.mainloop()
 
 
