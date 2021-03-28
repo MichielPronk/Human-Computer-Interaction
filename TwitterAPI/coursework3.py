@@ -5,6 +5,7 @@ import tkinter.ttk as ttk
 import threading
 import queue
 from geopy.geocoders import Nominatim
+import time
 
 
 class MainProgram(tk.Frame):
@@ -208,22 +209,17 @@ class TweetExtractor(tk.Frame):
         credentials.append(lines[3].strip().split(":")[1])
         return credentials
 
-    def startStream(self):
-        threading.Thread(target=self.twitterStream).start()
-
     def twitterStream(self):
-        while True:
-            if self.myStream.running and self.is_paused:
-                self.myStream.disconnect()
-            elif not self.myStream.running and not self.is_paused:
-                language = self.getLanguage()
-                location = self.getLocation()
-                if location is None:
-                    self.myStream.filter(is_async=True, track=self.filter_list_internal, languages=[language])
-                else:
-                    print('locatie aan')
-                    self.myStream.filter(is_async=True, track=self.filter_list_internal, languages=[language],
-                                         locations=location)
+        if self.myStream.running and self.is_paused:
+            self.myStream.disconnect()
+        elif not self.myStream.running and not self.is_paused:
+            language = self.getLanguage()
+            location = self.getLocation()
+            if location is None:
+                self.myStream.filter(is_async=True, track=self.filter_list_internal, languages=[language])
+            else:
+                self.myStream.filter(is_async=True, track=self.filter_list_internal, languages=[language],
+                                     locations=location)
 
     def start_stop(self):
         if self.is_paused:
@@ -231,6 +227,7 @@ class TweetExtractor(tk.Frame):
                 tk.messagebox.showerror("Error", "Please specify at least one filter in the filter list")
             else:
                 self.is_paused = False
+                self.twitterStream()
                 self.delete_button.config(state=tk.DISABLED)
                 self.filter_bar.config(state=tk.DISABLED)
                 self.location_input.config(state=tk.DISABLED)
@@ -239,6 +236,7 @@ class TweetExtractor(tk.Frame):
                 self.stream_button_text.set("Stop stream")
         else:
             self.is_paused = True
+            self.twitterStream()
             self.convo_queue.queue.clear()
             self.myStreamListener.tweet_queue.queue.clear()
             self.conversation_tree.delete(*self.conversation_tree.get_children())
@@ -300,7 +298,7 @@ class TweetExtractor(tk.Frame):
                     self.location.set("Location was not found")
                     self.loc_cur_label.config(fg="red")
             except queue.Empty:
-                pass
+                time.sleep(0.5)
 
     def delete(self):
         row_id = self.filter_list.focus()
@@ -341,7 +339,6 @@ class TweetExtractor(tk.Frame):
                     except tweepy.error.TweepError:
                         break
                 if 2 < len(conversation) < 11:
-
                     self.convo_queue.put(conversation)
 
     def insertConversations(self):
@@ -401,8 +398,7 @@ def main():
     root = tk.Tk()
     root.state('zoomed')
     frame = MainProgram(root)
-    frame.tweet_extractor.startStream()
-    #frame.tweet_extractor.startLocationChecker()
+    frame.tweet_extractor.startLocationChecker()
     frame.tweet_extractor.startProcessingTweets()
     frame.tweet_extractor.insertConversations()
     root.mainloop()
