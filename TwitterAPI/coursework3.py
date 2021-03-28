@@ -1,3 +1,5 @@
+from tkinter.filedialog import askopenfilename
+
 import tweepy
 import tkinter as tk
 from tkinter import messagebox
@@ -6,6 +8,9 @@ import threading
 import queue
 from geopy.geocoders import Nominatim
 import time
+import pickle
+import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 
 class MainProgram(tk.Frame):
@@ -83,9 +88,17 @@ class TweetExtractor(tk.Frame):
         self.myStreamListener = MyStreamListener()
         self.myStream = tweepy.Stream(auth=self.api.auth, listener=self.myStreamListener)
 
+        # Initialize Sentiment Analyzer
+        self.sid = SentimentIntensityAnalyzer()
+
         # Initialize conversation queue
         self.convo_queue = queue.Queue()
 
+        # Initialize conversation dictionary
+        self.conversation_dict = {}
+
+        # Initialize variables
+        self.language = ""
 
         # Create stream frame
         self.conversation_tree = ttk.Treeview(self)
@@ -101,7 +114,7 @@ class TweetExtractor(tk.Frame):
         self.stream_button.config(font='Helvetica 20')
 
         # Create drop down menu
-        self.option_list = ['English', 'Spanish', 'Italian', 'French', 'Japanese', 'Russian', 'Tamil', 'Dutch']
+        self.option_list = ['English', 'Spanish', 'Italian', 'French', 'Japanese', 'Russian', 'Tamil']
         self.option = tk.StringVar(self)
         self.option.set(self.option_list[0])
         self.language_menu = tk.OptionMenu(self.control_panel, self.option, *self.option_list)
@@ -213,12 +226,12 @@ class TweetExtractor(tk.Frame):
         if self.myStream.running and self.is_paused:
             self.myStream.disconnect()
         elif not self.myStream.running and not self.is_paused:
-            language = self.getLanguage()
+            self.language = self.getLanguage()
             location = self.getLocation()
             if location is None:
-                self.myStream.filter(is_async=True, track=self.filter_list_internal, languages=[language])
+                self.myStream.filter(is_async=True, track=self.filter_list_internal, languages=[self.language])
             else:
-                self.myStream.filter(is_async=True, track=self.filter_list_internal, languages=[language],
+                self.myStream.filter(is_async=True, track=self.filter_list_internal, languages=[self.language],
                                      locations=location)
 
     def start_stop(self):
@@ -237,9 +250,9 @@ class TweetExtractor(tk.Frame):
         else:
             self.is_paused = True
             self.twitterStream()
+            self.saveDictionary()
             self.convo_queue.queue.clear()
             self.myStreamListener.tweet_queue.queue.clear()
-            self.conversation_tree.delete(*self.conversation_tree.get_children())
             self.delete_button.config(state=tk.NORMAL)
             self.filter_bar.config(state=tk.NORMAL)
             self.filter_bar.delete(0, tk.END)
@@ -258,6 +271,7 @@ class TweetExtractor(tk.Frame):
             self.loc_cur_label.config(fg="black")
 
             self.stream_button_text.set("Start stream")
+            self.after(100, self.conversation_tree.delete(*self.conversation_tree.get_children()))
 
     def check_filter_input(self, event):
         input = self.filter_bar.get()
@@ -312,7 +326,7 @@ class TweetExtractor(tk.Frame):
     def getLanguage(self):
         selected = self.option.get()
         codes = {'English': 'en', 'Italian': 'it', 'French': 'fr', 'Spanish': 'es', 'Russian': 'ru', 'Japanese': 'jp',
-                 'Tamil': 'ta', 'Dutch': 'nl'}
+                 'Tamil': 'ta'}
         return codes[selected]
 
     def getLocation(self):
@@ -330,28 +344,67 @@ class TweetExtractor(tk.Frame):
     def processTweets(self):
         while True:
             tweet = self.myStreamListener.getfromQueue()
+            participants = set()
             if tweet is not None:
-                conversation = [(tweet.text, tweet.id)]
+                try:
+                    conversation = [(tweet.extended_tweet["full_text"], tweet.id)]
+                    participants.add(tweet.user.screen_name)
+                except AttributeError:
+                    conversation = [(tweet.text, tweet.id)]
+                    participants.add(tweet.user.screen_name)
                 while tweet.in_reply_to_status_id is not None:
                     try:
                         tweet = self.api.get_status(tweet.in_reply_to_status_id)
-                        conversation.insert(0, (tweet.text, tweet.id))
+                        try:
+                            conversation.insert(0, (tweet.extended_tweet["full_text"], tweet.id))
+                            participants.add(tweet.user.screen_name)
+                        except AttributeError:
+                            conversation.insert(0, (tweet.text, tweet.id))
+                            participants.add(tweet.user.screen_name)
                     except tweepy.error.TweepError:
                         break
                 if 2 < len(conversation) < 11:
+                    min_pos, min_neg = self.getSentimentScores(conversation)
+                    self.conversation_dict[conversation[0][1]] = {'conversation': conversation, 'participants': len(set(participants)), 'turns': len(conversation), 'min_pos': min_pos, 'min_neg': min_neg}
+                    print(self.conversation_dict)
                     self.convo_queue.put(conversation)
+
+    def getSentimentScores(self, conversation):
+        neg = []
+        pos = []
+        for sentence in conversation:
+            ss = self.sid.polarity_scores(sentence[0])
+            neg.append(ss['neg'])
+            pos.append(ss['pos'])
+        return min(neg), min(pos)
 
     def insertConversations(self):
         try:
             conversation = self.convo_queue.get(block=False)
-            if conversation is not None:
-                self.conversation_tree.insert('', tk.END, iid=conversation[0][1], text=conversation[0][0].replace('\n', ' '), open=True)
-                parent_id = conversation[0][1]
-                for i in range(1, len(conversation)):
-                    self.conversation_tree.insert(parent_id, tk.END, iid=conversation[i][1], text=conversation[i][0].replace('\n', ' '))
+            try:
+                self.conversation_tree.insert('', tk.END, iid=conversation[0][1],
+                                              text=conversation[0][0].replace('\n', ' '), open=True)
+            except tk.TclError:
+                self.conversation_tree.insert(conversation[0][1], tk.END, iid=conversation[-1][1],
+                                              text=conversation[-1][0].replace('\n', ' '))
+                self.insertConversations()
+            parent_id = conversation[0][1]
+            for i in range(1, len(conversation)):
+                self.conversation_tree.insert(parent_id, tk.END, iid=conversation[i][1],
+                                              text=conversation[i][0].replace('\n', ' '))
         except queue.Empty:
             pass
         self.after(100, self.insertConversations)
+
+    def saveDictionary(self):
+        if self.location.get() == "Enter a location" or "Location was not found":
+            file_name = "{0}_{1}".format(self.filter_list_internal, self.language)
+        else:
+            file_name = "{0}_{1}_{2}km_{3}".format(self.filter_list_internal, self.language, self.location.get(),
+                                                   self.radius.get())
+        with open(file_name, 'wb') as infile:
+            pickle.dump(self.conversation_dict, infile)
+        self.conversation_dict = {}
 
 
 class MyStreamListener(tweepy.StreamListener):
@@ -375,23 +428,154 @@ class SentimentAnalysis(tk.Frame):
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)
 
+        # Create class variables
+        self.conversation_dict = {}
+
+        # Create tree queue
+        self.tree_queue = queue.Queue()
+
+        # Create treeview for conversations
         self.conversation_tree = ttk.Treeview(self)
+        self.conversation_tree.pack(side=tk.BOTTOM, expand=1, fill=tk.BOTH)
+
+        # Create the control panel
         self.control_panel = tk.Frame(self)
+        self.control_panel.pack(side=tk.TOP, fill=tk.BOTH)
+
+        # Create label for minimum participants dropdown
+        self.minimum_part_menu_label = tk.Label(self.control_panel, text="Minimum participants")
+
+        # Create minimum participants dropdown
+        self.minimum_part_list = ['2', '3', '4', '5', '6', '7', '8', '9', '10']
+        self.minimum_part = tk.StringVar(self)
+        self.minimum_part.set(self.minimum_part_list[0])
+        self.minimum_part_menu = tk.OptionMenu(self.control_panel, self.minimum_part, *self.minimum_part_list)
+
+        # Create label for maximum participants dropdown
+        self.maximum_part_menu_label = tk.Label(self.control_panel, text="Maximum participants")
+
+        # Create maximum participants dropdown
+        self.maximum_part_list = ['2', '3', '4', '5', '6', '7', '8', '9', '10']
+        self.maximum_part = tk.StringVar(self)
+        self.maximum_part.set(self.maximum_part_list[8])
+        self.maximum_part_menu = tk.OptionMenu(self.control_panel, self.maximum_part, *self.maximum_part_list)
+
+        # Create label for minimum turns dropdown
+        self.minimum_turn_menu_label = tk.Label(self.control_panel, text="Minimum turns")
+
+        # Create minimum turns dropdown
+        self.minimum_turn_list = ['2', '3', '4', '5', '6', '7', '8', '9', '10']
+        self.minimum_turn = tk.StringVar(self)
+        self.minimum_turn.set(self.minimum_turn_list[0])
+        self.minimum_turn_menu = tk.OptionMenu(self.control_panel, self.minimum_turn, *self.minimum_turn_list)
+
+        # Create label for maximum turns dropdown
+        self.maximum_turn_menu_label = tk.Label(self.control_panel, text="Maximum turns")
+
+        # Create maximum turns dropdown
+        self.maximum_turn_list = ['2', '3', '4', '5', '6', '7', '8', '9', '10']
+        self.maximum_turn = tk.StringVar(self)
+        self.maximum_turn.set(self.maximum_turn_list[8])
+        self.maximum_turn_menu = tk.OptionMenu(self.control_panel, self.maximum_turn, *self.maximum_turn_list)
+
+        # Create label for minimum turns bar
+        self.minimum_positive_sentiment_bar_label = tk.Label(self.control_panel, text="Minimum positive sentiment score")
+
+        # Create scalebar for minimum positive sentiment
+        self.minimum_positive_sentiment = tk.StringVar()
+        self.minimum_positive_sentiment.set(float(0.10))
+        self.minimum_positive_sentiment_bar = tk.Scale(self.control_panel, from_=0, to=1, resolution=0.01, orient=tk.HORIZONTAL,
+                                                       variable=self.minimum_positive_sentiment)
+
+        # Create label for maximum turns bar
+        self.minimum_negative_sentiment_bar_label = tk.Label(self.control_panel, text="Minimum negative sentiment score")
+
+        # Create scalebar for minimum negative sentiment
+        self.minimum_negative_sentiment = tk.StringVar()
+        self.minimum_negative_sentiment.set(float(0.10))
+        self.minimum_negative_sentiment_bar = tk.Scale(self.control_panel, from_=0, to=1, resolution=0.01, orient=tk.HORIZONTAL,
+                                                       variable=self.minimum_negative_sentiment)
+
+        # Create submit button
+        self.submit = tk.Button(self.control_panel, text="Use filters", command=self.applyFilters)
 
         # Initialize the grid
-        self.grid(column=0, row=0, sticky='NESW')
-        tk.Grid.rowconfigure(parent, 0, weight=1)
-        tk.Grid.columnconfigure(parent, 0, weight=1)
-        tk.Grid.rowconfigure(self, 0, weight=1)
-        tk.Grid.columnconfigure(self, 0, weight=1)
-        for columns in range(3):
-            tk.Grid.columnconfigure(self, columns, weight=1)
+        tk.Grid.rowconfigure(self.control_panel, 0, weight=1)
+        tk.Grid.columnconfigure(self.control_panel, 0, weight=1)
+        for columns in range(12):
+            tk.Grid.columnconfigure(self.control_panel, columns, weight=1)
+        for rows in range(2):
+            tk.Grid.rowconfigure(self.control_panel, rows, weight=1)
+        self.minimum_part_menu_label.grid(column=0, row=0)
+        self.minimum_part_menu.grid(column=0, row=1)
 
-        self.conversation_tree.grid(column=0, row=0, columnspan=2, rowspan=1, sticky='NESW')
-        self.control_panel.grid(column=2, row=0, columnspan=1, rowspan=1, sticky='NESW')
+        self.maximum_part_menu_label.grid(column=1, row=0)
+        self.maximum_part_menu.grid(column=1, row=1)
+
+        self.minimum_turn_menu_label.grid(column=3, row=0)
+        self.minimum_turn_menu.grid(column=3, row=1)
+
+        self.maximum_turn_menu_label.grid(column=4, row=0)
+        self.maximum_turn_menu.grid(column=4, row=1)
+
+        self.minimum_positive_sentiment_bar_label.grid(column=6, row=0)
+        self.minimum_positive_sentiment_bar.grid(column=6, row=1)
+
+        self.minimum_negative_sentiment_bar_label.grid(column=7, row=0)
+        self.minimum_negative_sentiment_bar.grid(column=7, row=1)
+
+        self.submit.grid(column=9, row=0, rowspan=2)
+
+    def insertConversations(self):
+        try:
+            conversation = self.tree_queue.get(block=False)
+            self.conversation_tree.insert('', tk.END, iid=conversation[0][1],
+                                          text=conversation[0][0].replace('\n', ' '), open=True)
+            parent_id = conversation[0][1]
+            for i in range(1, len(conversation)):
+                self.conversation_tree.insert(parent_id, tk.END, iid=conversation[i][1],
+                                              text=conversation[i][0].replace('\n', ' '))
+        except queue.Empty:
+            pass
+        self.after(100, self.insertConversations)
+
+    def applyFilters(self):
+        if self.checkConditions():
+            if self.conversation_dict != {}:
+                self.conversation_tree.delete(*self.conversation_tree.get_children())
+                for conversation_id in self.conversation_dict:
+                    if (int(self.minimum_part.get()) <= self.conversation_dict[conversation_id]['participants'] <= int(self.maximum_part.get())) and (int(self.minimum_turn.get()) <= self.conversation_dict[conversation_id]['turns'] <= int(self.maximum_turn.get()) and float(self.conversation_dict[conversation_id]['min_pos']) >= float(self.minimum_positive_sentiment.get()) and float(self.conversation_dict[conversation_id]['min_neg']) >= float(self.minimum_negative_sentiment.get())):
+                        self.tree_queue.put(self.conversation_dict[conversation_id]['conversation'])
+
+    def checkConditions(self):
+        error_message = ""
+        if int(self.minimum_part.get()) > int(self.maximum_part.get()):
+            error_message += "The minimum number of participants cannot be higher than the maximum number of participants\n"
+        if int(self.minimum_turn.get()) > int(self.maximum_turn.get()):
+            error_message += "The minimum number of turns cannot be higher than the maximum number of turns\n"
+        if int(self.minimum_part.get() > int(self.minimum_turn.get())):
+            error_message += "The minimum amount of participants cannot be higher than the minimum number of turns\n"
+        if error_message == "":
+            return True
+        else:
+            tk.messagebox.showerror("Error", error_message)
+            return False
 
     def openFile(self):
-        print("Open file")
+        mytextfilename = askopenfilename(
+            filetypes=[("All Files", "*.*")]
+        )
+        if not mytextfilename:
+            return
+        self.conversation_tree.delete(*self.conversation_tree.get_children())
+        self.conversation_dict = pickle.load(open(mytextfilename, 'rb'))
+        for conversation_id in self.conversation_dict:
+            self.conversation_tree.insert('', tk.END, iid=self.conversation_dict[conversation_id]['conversation'][0][1],
+                                          text=self.conversation_dict[conversation_id]['conversation'][0][0].replace('\n', ' '),
+                                          open=True)
+            for i in range(1, len(self.conversation_dict[conversation_id]['conversation'])):
+                self.conversation_tree.insert(conversation_id, tk.END, iid=self.conversation_dict[conversation_id]['conversation'][i][1],
+                                              text=self.conversation_dict[conversation_id]['conversation'][i][0].replace('\n', ' '))
 
 
 def main():
@@ -401,6 +585,7 @@ def main():
     frame.tweet_extractor.startLocationChecker()
     frame.tweet_extractor.startProcessingTweets()
     frame.tweet_extractor.insertConversations()
+    frame.sentiment_analysis.insertConversations()
     root.mainloop()
 
 
