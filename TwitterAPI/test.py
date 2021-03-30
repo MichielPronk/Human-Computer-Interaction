@@ -6,11 +6,11 @@ class MyStreamListener(tweepy.StreamListener):
         print(tweet.text)
 
 
-auth = tweepy.OAuthHandler("IPUUHSwAjXkV1vT64pjFHDtbd", "H7Ruj5ik5Pe445V7wmcqavrbPkEnbBiAXp5YzM6SudmHNt3Dan")
-auth.set_access_token("1374325048153145344-jFOOCdgEOEz7goiRwzzwDaVulZkL2g", "wrbHJdiuHeLhPPtj8fHbJVjWJWkVisOoSkwI9TTihpxpv")
+auth = tweepy.OAuthHandler("HH33gBISI6lxtWXXmaEEc9GwR", "I48FawYnm26bw0XNjjDdAxBzLrEiW6bXjcO3uUlGaeCqEz5wCr")
+auth.set_access_token("1374325048153145344-mBQM6axfajmd3tSL5EZA5imPwv0CAf", "q2PkyIXF4SqGzRFhu3dGJvzA7bjo2Ry75Xx2hPgii2LOk")
 
 api = tweepy.API(auth)
 
 myStreamListener = MyStreamListener()
 myStream = tweepy.Stream(auth=api.auth, listener=myStreamListener)
-myStream.filter(track=['test'])
+myStream.filter(track=['trump'])

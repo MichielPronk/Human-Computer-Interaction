@@ -9,7 +9,6 @@ import queue
 from geopy.geocoders import Nominatim
 import time
 import pickle
-import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 
@@ -18,6 +17,7 @@ class MainProgram(tk.Frame):
         tk.Frame.__init__(self, parent)
 
         # Initialize notebook
+        parent.title('Twitter bot')
         self.notebook = ttk.Notebook(self)
 
         self.tweet_extractor = TweetExtractor(self.notebook)
@@ -41,7 +41,10 @@ class MainProgram(tk.Frame):
         # Add Exit option to File
         self.menu_file.add_command(label="Exit", command=lambda: self.quitProgram(parent))
 
-        # Add Exit option to File
+        # Add Credentials option to File
+        self.menu_file.add_command(label='Change Credentials', command=self.tweet_extractor.changeCredentials)
+
+        # Add Open option to File
         self.menu_file.add_command(label="Open", command=lambda: self.sentiment_analysis.openFile())
 
         # Add event handler to notebook to handle the menubar options
@@ -69,24 +72,67 @@ class MainProgram(tk.Frame):
         parent.destroy()
 
 
+class popUpWindow(object):
+    def __init__(self, master):
+        top = self.top = tk.Toplevel(master)
+        self.top.title('Change Credentials')
+        # Create API key input
+        self.api_key_label = tk.Label(top, text="Enter API key (25 characters)")
+        self.api_key = tk.Entry(top, width=70)
+        self.api_key_label.pack()
+        self.api_key.pack()
+        # Create API secret input
+        self.api_secret_label = tk.Label(top, text="Enter API secret (50 characters)")
+        self.api_secret = tk.Entry(top, width=70)
+        self.api_secret_label.pack()
+        self.api_secret.pack()
+        # Create access token input
+        self.access_token_label = tk.Label(top, text="Enter access token (50 character)")
+        self.access_token = tk.Entry(top, width=70)
+        self.access_token_label.pack()
+        self.access_token.pack()
+        # Create access secret input
+        self.access_secret_label = tk.Label(top, text="Enter access secret (45 characters)")
+        self.access_secret = tk.Entry(top, width=70)
+        self.access_secret_label.pack()
+        self.access_secret.pack()
+
+        self.b = tk.Button(top, text='Submit', command=self.cleanup, width=30)
+        self.c = tk.Button(top, text='Cancel', command=self.quitProgram, width=30)
+        self.b.pack()
+        self.c.pack()
+
+    def cleanup(self):
+        error_message = ''
+        if self.api_key.get() == '' or self.api_secret.get() == '' or self.access_token.get() == '' or self.access_secret.get() == '':
+            tk.messagebox.showerror('error', 'Not all fields are filled in!')
+        if len(self.api_key.get()) != 25:
+            error_message += 'API key is not 25 characters\n'
+        if len(self.api_secret.get()) != 50:
+            error_message += 'API secret is not 50 characters\n'
+        if len(self.access_token.get()) != 50:
+            error_message += 'Access token is not 50 characters\n'
+        if len(self.access_secret.get()) != 45:
+            error_message += 'Access secrect is not 45 characters\n'
+        if error_message != '':
+            tk.messagebox.showerror('error', error_message)
+        else:
+            with open('credentials', 'w') as infile:
+                infile.write(self.api_key.get() + '\n' +
+                             self.api_secret.get() + '\n' +
+                             self.access_token.get() + '\n' +
+                             self.access_secret.get())
+            self.quitProgram()
+
+    def quitProgram(self):
+        self.top.destroy()
+
 class TweetExtractor(tk.Frame):
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)
 
         # Initial state of the stream
         self.is_paused = True
-
-        # Get the credentials
-        credentials = self.getCredentials()
-
-        # Login to twitter
-        auth = tweepy.OAuthHandler(credentials[0], credentials[1])
-        auth.set_access_token(credentials[2], credentials[3])
-        self.api = tweepy.API(auth)
-
-        # Initialize stream listener
-        self.myStreamListener = MyStreamListener()
-        self.myStream = tweepy.Stream(auth=self.api.auth, listener=self.myStreamListener)
 
         # Initialize Sentiment Analyzer
         self.sid = SentimentIntensityAnalyzer()
@@ -184,10 +230,10 @@ class TweetExtractor(tk.Frame):
             tk.Grid.columnconfigure(self, columns, weight=1)
 
         # Insert stream frame into main frame
-        self.conversation_tree.grid(column=0, row=0, columnspan=4, rowspan=1, sticky='NESW')
+        self.conversation_tree.grid(column=0, row=0, columnspan=5, rowspan=1, sticky='NESW')
 
         # Insert control panel into main frame
-        self.control_panel.grid(column=4, row=0, columnspan=1, rowspan=1, sticky='NESW')
+        self.control_panel.grid(column=5, row=0, columnspan=1, rowspan=1, sticky='NESW')
 
         # Initialize weights for control panel frame
         tk.Grid.rowconfigure(self.control_panel, 0, weight=1)
@@ -196,6 +242,11 @@ class TweetExtractor(tk.Frame):
             tk.Grid.columnconfigure(self.control_panel, columns, weight=1)
         for rows in range(50):
             tk.Grid.rowconfigure(self.control_panel, rows, weight=1)
+
+        # Initialize scrollbar
+        self.scrollbar = tk.Scrollbar(self.conversation_tree, orient="vertical", command=self.conversation_tree.yview)
+        self.conversation_tree.configure(yscrollcommand=self.scrollbar.set)
+        self.scrollbar.pack(side="right", fill="y")
 
         # Insert control panel options
         self.filter_list.grid(column=1, row=0, columnspan=5, rowspan=26, sticky='NSEW')
@@ -212,15 +263,27 @@ class TweetExtractor(tk.Frame):
         self.stream_button.grid(column=3, row=41, sticky='EW')
         self.warning.grid(column=3, row=43)
 
+
     def getCredentials(self):
-        credentials = []
-        with open("credentials4", "r") as infile:
-            lines = infile.readlines()
-        credentials.append(lines[0].strip().split(":")[1])
-        credentials.append(lines[1].strip().split(":")[1])
-        credentials.append(lines[2].strip().split(":")[1])
-        credentials.append(lines[3].strip().split(":")[1])
-        return credentials
+        with open("credentials", "r") as infile:
+            return infile.readlines()
+
+
+    def changeCredentials(self):
+        self.windows = popUpWindow(self.master)
+
+    def loginTwitter(self):
+        credentials = self.getCredentials()
+
+        # Login to twitter
+        auth = tweepy.OAuthHandler(credentials[0].rstrip(), credentials[1].rstrip())
+        auth.set_access_token(credentials[2].rstrip(), credentials[3].rstrip())
+        self.api = tweepy.API(auth)
+
+        # Initialize stream listener
+        self.myStreamListener = MyStreamListener()
+        self.myStream = tweepy.Stream(auth=self.api.auth, listener=self.myStreamListener)
+
 
     def twitterStream(self):
         if self.myStream.running and self.is_paused:
@@ -240,6 +303,7 @@ class TweetExtractor(tk.Frame):
                 tk.messagebox.showerror("Error", "Please specify at least one filter in the filter list")
             else:
                 self.is_paused = False
+                self.loginTwitter()
                 self.twitterStream()
                 self.delete_button.config(state=tk.DISABLED)
                 self.filter_bar.config(state=tk.DISABLED)
@@ -249,10 +313,10 @@ class TweetExtractor(tk.Frame):
                 self.stream_button_text.set("Stop stream")
         else:
             self.is_paused = True
-            self.twitterStream()
-            self.saveDictionary()
             self.convo_queue.queue.clear()
             self.myStreamListener.tweet_queue.queue.clear()
+            self.twitterStream()
+            self.saveDictionary()
             self.delete_button.config(state=tk.NORMAL)
             self.filter_bar.config(state=tk.NORMAL)
             self.filter_bar.delete(0, tk.END)
@@ -343,31 +407,33 @@ class TweetExtractor(tk.Frame):
 
     def processTweets(self):
         while True:
-            tweet = self.myStreamListener.getfromQueue()
-            participants = set()
-            if tweet is not None:
-                try:
-                    conversation = [(tweet.extended_tweet["full_text"], tweet.id)]
-                    participants.add(tweet.user.screen_name)
-                except AttributeError:
-                    conversation = [(tweet.text, tweet.id)]
-                    participants.add(tweet.user.screen_name)
-                while tweet.in_reply_to_status_id is not None:
+            try:
+                tweet = self.myStreamListener.getfromQueue()
+                participants = set()
+                if tweet is not None:
                     try:
-                        tweet = self.api.get_status(tweet.in_reply_to_status_id)
+                        conversation = [(tweet.extended_tweet["full_text"], tweet.id)]
+                        participants.add(tweet.user.screen_name)
+                    except AttributeError:
+                        conversation = [(tweet.text, tweet.id)]
+                        participants.add(tweet.user.screen_name)
+                    while tweet.in_reply_to_status_id is not None:
                         try:
-                            conversation.insert(0, (tweet.extended_tweet["full_text"], tweet.id))
-                            participants.add(tweet.user.screen_name)
-                        except AttributeError:
-                            conversation.insert(0, (tweet.text, tweet.id))
-                            participants.add(tweet.user.screen_name)
-                    except tweepy.error.TweepError:
-                        break
-                if 2 < len(conversation) < 11:
-                    min_pos, min_neg = self.getSentimentScores(conversation)
-                    self.conversation_dict[conversation[0][1]] = {'conversation': conversation, 'participants': len(set(participants)), 'turns': len(conversation), 'min_pos': min_pos, 'min_neg': min_neg}
-                    print(self.conversation_dict)
-                    self.convo_queue.put(conversation)
+                            tweet = self.api.get_status(tweet.in_reply_to_status_id)
+                            try:
+                                conversation.insert(0, (tweet.extended_tweet["full_text"], tweet.id))
+                                participants.add(tweet.user.screen_name)
+                            except AttributeError:
+                                conversation.insert(0, (tweet.text, tweet.id))
+                                participants.add(tweet.user.screen_name)
+                        except tweepy.error.TweepError:
+                            break
+                    if 2 < len(conversation) < 11:
+                        min_pos, min_neg = self.getSentimentScores(conversation)
+                        self.conversation_dict[conversation[0][1]] = {'conversation': conversation, 'participants': len(set(participants)), 'turns': len(conversation), 'min_pos': min_pos, 'min_neg': min_neg}
+                        self.convo_queue.put(conversation)
+            except AttributeError:
+                pass
 
     def getSentimentScores(self, conversation):
         neg = []
@@ -384,14 +450,13 @@ class TweetExtractor(tk.Frame):
             try:
                 self.conversation_tree.insert('', tk.END, iid=conversation[0][1],
                                               text=conversation[0][0].replace('\n', ' '), open=True)
+                parent_id = conversation[0][1]
+                for i in range(1, len(conversation)):
+                    self.conversation_tree.insert(parent_id, tk.END, iid=conversation[i][1],
+                                                  text=conversation[i][0].replace('\n', ' '))
             except tk.TclError:
                 self.conversation_tree.insert(conversation[0][1], tk.END, iid=conversation[-1][1],
                                               text=conversation[-1][0].replace('\n', ' '))
-                self.insertConversations()
-            parent_id = conversation[0][1]
-            for i in range(1, len(conversation)):
-                self.conversation_tree.insert(parent_id, tk.END, iid=conversation[i][1],
-                                              text=conversation[i][0].replace('\n', ' '))
         except queue.Empty:
             pass
         self.after(100, self.insertConversations)
@@ -499,6 +564,11 @@ class SentimentAnalysis(tk.Frame):
         # Create submit button
         self.submit = tk.Button(self.control_panel, text="Use filters", command=self.applyFilters)
 
+        # Initialize scrollbar
+        self.scrollbar = tk.Scrollbar(self.conversation_tree, orient="vertical", command=self.conversation_tree.yview)
+        self.conversation_tree.configure(yscrollcommand=self.scrollbar.set)
+        self.scrollbar.pack(side="right", fill="y")
+
         # Initialize the grid
         tk.Grid.rowconfigure(self.control_panel, 0, weight=1)
         tk.Grid.columnconfigure(self.control_panel, 0, weight=1)
@@ -553,7 +623,7 @@ class SentimentAnalysis(tk.Frame):
             error_message += "The minimum number of participants cannot be higher than the maximum number of participants\n"
         if int(self.minimum_turn.get()) > int(self.maximum_turn.get()):
             error_message += "The minimum number of turns cannot be higher than the maximum number of turns\n"
-        if int(self.minimum_part.get() > int(self.minimum_turn.get())):
+        if int(self.minimum_part.get()) > int(self.minimum_turn.get()):
             error_message += "The minimum amount of participants cannot be higher than the minimum number of turns\n"
         if error_message == "":
             return True
