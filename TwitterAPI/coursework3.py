@@ -214,7 +214,7 @@ class TweetExtractor(tk.Frame):
 
     def getCredentials(self):
         credentials = []
-        with open("credentials3", "r") as infile:
+        with open("credentials4", "r") as infile:
             lines = infile.readlines()
         credentials.append(lines[0].strip().split(":")[1])
         credentials.append(lines[1].strip().split(":")[1])
