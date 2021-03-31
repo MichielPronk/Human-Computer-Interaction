@@ -303,6 +303,7 @@ class TweetExtractor(tk.Frame):
                 tk.messagebox.showerror("Error", "Please specify at least one filter in the filter list")
             else:
                 self.is_paused = False
+                self.conversation_tree.delete(*self.conversation_tree.get_children())
                 self.loginTwitter()
                 self.twitterStream()
                 self.delete_button.config(state=tk.DISABLED)
@@ -335,7 +336,6 @@ class TweetExtractor(tk.Frame):
             self.loc_cur_label.config(fg="black")
 
             self.stream_button_text.set("Start stream")
-            self.after(100, self.conversation_tree.delete(*self.conversation_tree.get_children()))
 
     def check_filter_input(self, event):
         input = self.filter_bar.get()
@@ -430,19 +430,38 @@ class TweetExtractor(tk.Frame):
                             break
                     if 2 < len(conversation) < 11:
                         min_pos, min_neg = self.getSentimentScores(conversation)
+                        print(min_pos, min_neg)
                         self.conversation_dict[conversation[0][1]] = {'conversation': conversation, 'participants': len(set(participants)), 'turns': len(conversation), 'min_pos': min_pos, 'min_neg': min_neg}
                         self.convo_queue.put(conversation)
             except AttributeError:
                 pass
 
     def getSentimentScores(self, conversation):
-        neg = []
-        pos = []
-        for sentence in conversation:
+        pos_diff_list = []
+        neg_diff_list = []
+        ss_old = self.sid.polarity_scores(conversation[0][0])
+        for sentence in conversation[1:]:
             ss = self.sid.polarity_scores(sentence[0])
-            neg.append(ss['neg'])
-            pos.append(ss['pos'])
-        return min(neg), min(pos)
+            pos_diff = ss['pos'] - ss_old['pos']
+            neg_diff = ss['neg'] - ss_old['neg']
+            pos_diff_list.append(pos_diff)
+            neg_diff_list.append(neg_diff)
+            ss_old = ss
+
+        if all(i > 0 for i in pos_diff_list):
+            min_pos = min(pos_diff_list)
+        elif all(i < 0 for i in pos_diff_list):
+            min_pos = max(pos_diff_list)
+        else:
+            min_pos = 0
+
+        if all(i > 0 for i in neg_diff_list):
+            min_neg = min(neg_diff_list)
+        elif all(i > 0 for i in neg_diff_list):
+            min_neg = max(neg_diff_list)
+        else:
+            min_neg = 0
+        return min_pos, min_neg
 
     def insertConversations(self):
         try:
@@ -543,23 +562,23 @@ class SentimentAnalysis(tk.Frame):
         self.maximum_turn.set(self.maximum_turn_list[8])
         self.maximum_turn_menu = tk.OptionMenu(self.control_panel, self.maximum_turn, *self.maximum_turn_list)
 
+        # Sentiment attitude
+        self.sentiment_label = tk.Label(self.control_panel, text="Sentiment attitude")
+
+        # Dropdown menu for sentiment
+        self.sentiment_list = ['Better', 'Worse']
+        self.sentiment = tk.StringVar(self)
+        self.sentiment.set(self.sentiment_list[0])
+        self.sentiment_menu = tk.OptionMenu(self.control_panel, self.sentiment, *self.sentiment_list)
+
         # Create label for minimum turns bar
-        self.minimum_positive_sentiment_bar_label = tk.Label(self.control_panel, text="Minimum positive sentiment score")
+        self.minimum_sentiment_bar_label = tk.Label(self.control_panel, text="Minimum sentiment change")
 
         # Create scalebar for minimum positive sentiment
-        self.minimum_positive_sentiment = tk.StringVar()
-        self.minimum_positive_sentiment.set(float(0.10))
-        self.minimum_positive_sentiment_bar = tk.Scale(self.control_panel, from_=0, to=1, resolution=0.01, orient=tk.HORIZONTAL,
-                                                       variable=self.minimum_positive_sentiment)
-
-        # Create label for maximum turns bar
-        self.minimum_negative_sentiment_bar_label = tk.Label(self.control_panel, text="Minimum negative sentiment score")
-
-        # Create scalebar for minimum negative sentiment
-        self.minimum_negative_sentiment = tk.StringVar()
-        self.minimum_negative_sentiment.set(float(0.10))
-        self.minimum_negative_sentiment_bar = tk.Scale(self.control_panel, from_=0, to=1, resolution=0.01, orient=tk.HORIZONTAL,
-                                                       variable=self.minimum_negative_sentiment)
+        self.minimum_sentiment = tk.StringVar()
+        self.minimum_sentiment.set(float(0.10))
+        self.minimum_sentiment_bar = tk.Scale(self.control_panel, from_=0, to=1, resolution=0.01, orient=tk.HORIZONTAL,
+                                              variable=self.minimum_sentiment)
 
         # Create submit button
         self.submit = tk.Button(self.control_panel, text="Use filters", command=self.applyFilters)
@@ -588,11 +607,11 @@ class SentimentAnalysis(tk.Frame):
         self.maximum_turn_menu_label.grid(column=4, row=0)
         self.maximum_turn_menu.grid(column=4, row=1)
 
-        self.minimum_positive_sentiment_bar_label.grid(column=6, row=0)
-        self.minimum_positive_sentiment_bar.grid(column=6, row=1)
+        self.sentiment_label.grid(column=6, row=0)
+        self.sentiment_menu.grid(column=6, row=1)
 
-        self.minimum_negative_sentiment_bar_label.grid(column=7, row=0)
-        self.minimum_negative_sentiment_bar.grid(column=7, row=1)
+        self.minimum_sentiment_bar_label.grid(column=7, row=0)
+        self.minimum_sentiment_bar.grid(column=7, row=1)
 
         self.submit.grid(column=9, row=0, rowspan=2)
 
@@ -614,7 +633,14 @@ class SentimentAnalysis(tk.Frame):
             if self.conversation_dict != {}:
                 self.conversation_tree.delete(*self.conversation_tree.get_children())
                 for conversation_id in self.conversation_dict:
-                    if (int(self.minimum_part.get()) <= self.conversation_dict[conversation_id]['participants'] <= int(self.maximum_part.get())) and (int(self.minimum_turn.get()) <= self.conversation_dict[conversation_id]['turns'] <= int(self.maximum_turn.get()) and float(self.conversation_dict[conversation_id]['min_pos']) >= float(self.minimum_positive_sentiment.get()) and float(self.conversation_dict[conversation_id]['min_neg']) >= float(self.minimum_negative_sentiment.get())):
+                    if (int(self.minimum_part.get()) <= self.conversation_dict[conversation_id]['participants'] <= int(self.maximum_part.get())) and\
+                            (int(self.minimum_turn.get()) <= self.conversation_dict[conversation_id]['turns'] <= int(self.maximum_turn.get())) and\
+                            ((self.sentiment.get() == "Better" and
+                              ((self.conversation_dict[conversation_id]['min_pos'] >= 0 and self.conversation_dict[conversation_id]['min_pos'] >= float(self.minimum_sentiment.get())) or
+                               (self.conversation_dict[conversation_id]['min_neg'] <= 0 and abs(self.conversation_dict[conversation_id]['min_neg']) >= float(self.minimum_sentiment.get())))) or
+                             (self.sentiment.get() == "Worse" and
+                              ((self.conversation_dict[conversation_id]['min_pos'] <= 0 and abs(self.conversation_dict[conversation_id]['min_pos']) >= float(self.minimum_sentiment.get())) or
+                               (self.conversation_dict[conversation_id]['min_neg'] >= 0 and self.conversation_dict[conversation_id]['min_neg'] >= float(self.minimum_sentiment.get()))))):
                         self.tree_queue.put(self.conversation_dict[conversation_id]['conversation'])
 
     def checkConditions(self):
@@ -633,8 +659,8 @@ class SentimentAnalysis(tk.Frame):
 
     def openFile(self):
         mytextfilename = askopenfilename(
-            filetypes=[("All Files", "*.*")]
-        )
+            filetypes=[("All Files", "*.*")])
+
         if not mytextfilename:
             return
         self.conversation_tree.delete(*self.conversation_tree.get_children())
