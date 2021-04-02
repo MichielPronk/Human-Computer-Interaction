@@ -430,7 +430,6 @@ class TweetExtractor(tk.Frame):
                             break
                     if 2 < len(conversation) < 11:
                         min_pos, min_neg = self.getSentimentScores(conversation)
-                        print(min_pos, min_neg)
                         self.conversation_dict[conversation[0][1]] = {'conversation': conversation, 'participants': len(set(participants)), 'turns': len(conversation), 'min_pos': min_pos, 'min_neg': min_neg}
                         self.convo_queue.put(conversation)
             except AttributeError:
