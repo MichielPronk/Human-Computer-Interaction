@@ -1,5 +1,4 @@
 from tkinter.filedialog import askopenfilename
-
 import tweepy
 import tkinter as tk
 from tkinter import messagebox
@@ -9,11 +8,12 @@ import queue
 from geopy.geocoders import Nominatim
 import time
 import pickle
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 
 class MainProgram(tk.Frame):
     def __init__(self, parent):
+        """Initialize Main class and configure the frame"""
         tk.Frame.__init__(self, parent)
 
         # Initialize notebook
@@ -59,6 +59,7 @@ class MainProgram(tk.Frame):
         self.notebook.grid(column=0, row=0, columnspan=1, rowspan=1, sticky='NESW')
 
     def switchMenu(self, event):
+        """Changes the active notebook on click"""
         active_tab_id = self.notebook.select()
         active_tab = self.notebook.index(active_tab_id)
         if active_tab == 0:
@@ -74,37 +75,47 @@ class MainProgram(tk.Frame):
 
 class popUpWindow(object):
     def __init__(self, master):
+        """Initialize pop-up window for changing credentials"""
         top = self.top = tk.Toplevel(master)
         self.top.title('Change Credentials')
+
         # Create API key input
         self.api_key_label = tk.Label(top, text="Enter API key (25 characters)")
         self.api_key = tk.Entry(top, width=70)
         self.api_key_label.pack()
         self.api_key.pack()
+
         # Create API secret input
         self.api_secret_label = tk.Label(top, text="Enter API secret (50 characters)")
         self.api_secret = tk.Entry(top, width=70)
         self.api_secret_label.pack()
         self.api_secret.pack()
+
         # Create access token input
         self.access_token_label = tk.Label(top, text="Enter access token (50 character)")
         self.access_token = tk.Entry(top, width=70)
         self.access_token_label.pack()
         self.access_token.pack()
+
         # Create access secret input
         self.access_secret_label = tk.Label(top, text="Enter access secret (45 characters)")
         self.access_secret = tk.Entry(top, width=70)
         self.access_secret_label.pack()
         self.access_secret.pack()
 
+        # Create buttons for pop-up window
         self.b = tk.Button(top, text='Submit', command=self.cleanup, width=30)
         self.c = tk.Button(top, text='Cancel', command=self.quitProgram, width=30)
         self.b.pack()
         self.c.pack()
 
     def cleanup(self):
+        """Checks input, shows error message and writes credentials to file"""
         error_message = ''
-        if self.api_key.get() == '' or self.api_secret.get() == '' or self.access_token.get() == '' or self.access_secret.get() == '':
+        if self.api_key.get() == ''\
+                or self.api_secret.get() == ''\
+                or self.access_token.get() == ''\
+                or self.access_secret.get() == '':
             tk.messagebox.showerror('error', 'Not all fields are filled in!')
         if len(self.api_key.get()) != 25:
             error_message += 'API key is not 25 characters\n'
@@ -125,10 +136,13 @@ class popUpWindow(object):
             self.quitProgram()
 
     def quitProgram(self):
+        """Quits program"""
         self.top.destroy()
+
 
 class TweetExtractor(tk.Frame):
     def __init__(self, parent):
+        """Initializes and configures frame which streams tweets with filters"""
         tk.Frame.__init__(self, parent)
 
         # Initial state of the stream
@@ -263,16 +277,17 @@ class TweetExtractor(tk.Frame):
         self.stream_button.grid(column=3, row=41, sticky='EW')
         self.warning.grid(column=3, row=43)
 
-
     def getCredentials(self):
+        """Extracts credentials from file"""
         with open("credentials", "r") as infile:
             return infile.readlines()
 
-
     def changeCredentials(self):
+        """Creates pop-up window instance for changing credentials"""
         self.windows = popUpWindow(self.master)
 
     def loginTwitter(self):
+        """Logs into Twitter API and creates API instance and stream-listener"""
         credentials = self.getCredentials()
 
         # Login to twitter
@@ -284,8 +299,8 @@ class TweetExtractor(tk.Frame):
         self.myStreamListener = MyStreamListener()
         self.myStream = tweepy.Stream(auth=self.api.auth, listener=self.myStreamListener)
 
-
     def twitterStream(self):
+        """Stops or starts stream with set filters"""
         if self.myStream.running and self.is_paused:
             self.myStream.disconnect()
         elif not self.myStream.running and not self.is_paused:
@@ -298,6 +313,7 @@ class TweetExtractor(tk.Frame):
                                      locations=location)
 
     def start_stop(self):
+        """Configures stop/start state"""
         if self.is_paused:
             if not self.filter_list_internal:
                 tk.messagebox.showerror("Error", "Please specify at least one filter in the filter list")
@@ -338,6 +354,7 @@ class TweetExtractor(tk.Frame):
             self.stream_button_text.set("Start stream")
 
     def check_filter_input(self, event):
+        """Checks input from filter input, adds filters to the list and treeview"""
         input = self.filter_bar.get()
         self.filter_bar.delete(0, tk.END)
         if input == "":
@@ -349,6 +366,7 @@ class TweetExtractor(tk.Frame):
             self.filter_list.insert("", tk.END, text=input, values=(input,))
 
     def check_location_input(self, event):
+        """Checks input from location input and puts info in the queue"""
         input = self.location_input.get()
         self.location_input.delete(0, tk.END)
         if input == "":
@@ -359,9 +377,11 @@ class TweetExtractor(tk.Frame):
             self.location_queue.put(input)
 
     def startLocationChecker(self):
+        """Start location checker thread"""
         threading.Thread(target=self.location_checker).start()
 
     def location_checker(self):
+        """Searches for location and changes location label"""
         geolocator = Nominatim(user_agent="JeMiBot")
         while True:
             try:
@@ -379,6 +399,7 @@ class TweetExtractor(tk.Frame):
                 time.sleep(0.5)
 
     def delete(self):
+        """Deletes selected treeview item"""
         row_id = self.filter_list.focus()
         node_name = self.filter_list.item(row_id)['text']
         try:
@@ -388,12 +409,14 @@ class TweetExtractor(tk.Frame):
             pass
 
     def getLanguage(self):
+        """Converts chosen language to Twitter language code"""
         selected = self.option.get()
         codes = {'English': 'en', 'Italian': 'it', 'French': 'fr', 'Spanish': 'es', 'Russian': 'ru', 'Japanese': 'jp',
                  'Tamil': 'ta'}
         return codes[selected]
 
     def getLocation(self):
+        """Converts location longitude and latitude to a list of two positions"""
         if self.longitude == 0 and self.latitude == 0:
             return None
         else:
@@ -403,9 +426,11 @@ class TweetExtractor(tk.Frame):
                     self.longitude + north_south + east_west, self.latitude + north_south + east_west]
 
     def startProcessingTweets(self):
+        """Starts tweet processing thread"""
         threading.Thread(target=self.processTweets).start()
 
     def processTweets(self):
+        """Takes tweet from queue, finds parent tweets and adds relevant info to a dictionary"""
         while True:
             try:
                 tweet = self.myStreamListener.getfromQueue()
@@ -430,12 +455,16 @@ class TweetExtractor(tk.Frame):
                             break
                     if 2 < len(conversation) < 11:
                         min_pos, min_neg = self.getSentimentScores(conversation)
-                        self.conversation_dict[conversation[0][1]] = {'conversation': conversation, 'participants': len(set(participants)), 'turns': len(conversation), 'min_pos': min_pos, 'min_neg': min_neg}
+                        self.conversation_dict[conversation[0][1]] = \
+                            {'conversation': conversation, 'participants': len(set(participants)),
+                             'turns': len(conversation), 'min_pos': min_pos, 'min_neg': min_neg}
                         self.convo_queue.put(conversation)
             except AttributeError:
                 pass
 
     def getSentimentScores(self, conversation):
+        """Calculates the sentiment scores, checks the discourse and
+        returns the minimum increase or decrease of the conversations"""
         pos_diff_list = []
         neg_diff_list = []
         ss_old = self.sid.polarity_scores(conversation[0][0])
@@ -463,6 +492,7 @@ class TweetExtractor(tk.Frame):
         return min_pos, min_neg
 
     def insertConversations(self):
+        """Insert found conversations into the treeview"""
         try:
             conversation = self.convo_queue.get(block=False)
             try:
@@ -480,6 +510,7 @@ class TweetExtractor(tk.Frame):
         self.after(100, self.insertConversations)
 
     def saveDictionary(self):
+        """After conversations have been collected, generates a filename and save dictionary as pickle"""
         if self.location.get() == "Enter a location" or "Location was not found":
             file_name = "{0}_{1}".format(self.filter_list_internal, self.language)
         else:
@@ -492,10 +523,12 @@ class TweetExtractor(tk.Frame):
 
 class MyStreamListener(tweepy.StreamListener):
     def __init__(self):
+        """Initializes and modifies Twitter stream listener"""
         tweepy.StreamListener.__init__(self)
         self.tweet_queue = queue.Queue()
 
     def getfromQueue(self):
+        """Returns tweets to the TweetExtractor class"""
         try:
             tweet = self.tweet_queue.get(block=False)
             return tweet
@@ -503,12 +536,14 @@ class MyStreamListener(tweepy.StreamListener):
             pass
 
     def on_status(self, tweet):
+        """Puts tweets with parent in queue"""
         if tweet.in_reply_to_status_id is not None:
             self.tweet_queue.put(tweet)
 
 
 class SentimentAnalysis(tk.Frame):
     def __init__(self, parent):
+        """Initializes and configures frame displaying conversations with sentiments analysis filters"""
         tk.Frame.__init__(self, parent)
 
         # Create class variables
@@ -615,6 +650,7 @@ class SentimentAnalysis(tk.Frame):
         self.submit.grid(column=9, row=0, rowspan=2)
 
     def insertConversations(self):
+        """Insert conversations into treeview"""
         try:
             conversation = self.tree_queue.get(block=False)
             self.conversation_tree.insert('', tk.END, iid=conversation[0][1],
@@ -628,24 +664,37 @@ class SentimentAnalysis(tk.Frame):
         self.after(100, self.insertConversations)
 
     def applyFilters(self):
+        """Inserts conversations which meet the filter into treeview"""
         if self.checkConditions():
             if self.conversation_dict != {}:
                 self.conversation_tree.delete(*self.conversation_tree.get_children())
                 for conversation_id in self.conversation_dict:
-                    if (int(self.minimum_part.get()) <= self.conversation_dict[conversation_id]['participants'] <= int(self.maximum_part.get())) and\
-                            (int(self.minimum_turn.get()) <= self.conversation_dict[conversation_id]['turns'] <= int(self.maximum_turn.get())) and\
+                    if (int(self.minimum_part.get()) <= self.conversation_dict[conversation_id]['participants']
+                        <= int(self.maximum_part.get())) and\
+                            (int(self.minimum_turn.get()) <= self.conversation_dict[conversation_id]['turns']
+                             <= int(self.maximum_turn.get())) and\
                             ((self.sentiment.get() == "Better" and
-                              ((self.conversation_dict[conversation_id]['min_pos'] >= 0 and self.conversation_dict[conversation_id]['min_pos'] >= float(self.minimum_sentiment.get())) or
-                               (self.conversation_dict[conversation_id]['min_neg'] <= 0 and abs(self.conversation_dict[conversation_id]['min_neg']) >= float(self.minimum_sentiment.get())))) or
+                              ((self.conversation_dict[conversation_id]['min_pos'] >= 0 and
+                                self.conversation_dict[conversation_id]['min_pos'] >=
+                                float(self.minimum_sentiment.get())) or
+                               (self.conversation_dict[conversation_id]['min_neg'] <= 0 and
+                                abs(self.conversation_dict[conversation_id]['min_neg']) >=
+                                float(self.minimum_sentiment.get())))) or
                              (self.sentiment.get() == "Worse" and
-                              ((self.conversation_dict[conversation_id]['min_pos'] <= 0 and abs(self.conversation_dict[conversation_id]['min_pos']) >= float(self.minimum_sentiment.get())) or
-                               (self.conversation_dict[conversation_id]['min_neg'] >= 0 and self.conversation_dict[conversation_id]['min_neg'] >= float(self.minimum_sentiment.get()))))):
+                              ((self.conversation_dict[conversation_id]['min_pos'] <= 0 and
+                                abs(self.conversation_dict[conversation_id]['min_pos']) >=
+                                float(self.minimum_sentiment.get())) or
+                               (self.conversation_dict[conversation_id]['min_neg'] >= 0 and
+                                self.conversation_dict[conversation_id]['min_neg'] >=
+                                float(self.minimum_sentiment.get()))))):
                         self.tree_queue.put(self.conversation_dict[conversation_id]['conversation'])
 
     def checkConditions(self):
+        """Checks if filters are appropriate"""
         error_message = ""
         if int(self.minimum_part.get()) > int(self.maximum_part.get()):
-            error_message += "The minimum number of participants cannot be higher than the maximum number of participants\n"
+            error_message += \
+                "The minimum number of participants cannot be higher than the maximum number of participants\n"
         if int(self.minimum_turn.get()) > int(self.maximum_turn.get()):
             error_message += "The minimum number of turns cannot be higher than the maximum number of turns\n"
         if int(self.minimum_part.get()) > int(self.minimum_turn.get()):
@@ -657,6 +706,7 @@ class SentimentAnalysis(tk.Frame):
             return False
 
     def openFile(self):
+        """Prompts user to select a file and adds content to treeview"""
         mytextfilename = askopenfilename(
             filetypes=[("All Files", "*.*")])
 
@@ -664,13 +714,17 @@ class SentimentAnalysis(tk.Frame):
             return
         self.conversation_tree.delete(*self.conversation_tree.get_children())
         self.conversation_dict = pickle.load(open(mytextfilename, 'rb'))
+        print(self.conversation_dict)
         for conversation_id in self.conversation_dict:
             self.conversation_tree.insert('', tk.END, iid=self.conversation_dict[conversation_id]['conversation'][0][1],
-                                          text=self.conversation_dict[conversation_id]['conversation'][0][0].replace('\n', ' '),
+                                          text=self.conversation_dict[conversation_id]['conversation']
+                                          [0][0].replace('\n', ' '),
                                           open=True)
             for i in range(1, len(self.conversation_dict[conversation_id]['conversation'])):
-                self.conversation_tree.insert(conversation_id, tk.END, iid=self.conversation_dict[conversation_id]['conversation'][i][1],
-                                              text=self.conversation_dict[conversation_id]['conversation'][i][0].replace('\n', ' '))
+                self.conversation_tree.insert(conversation_id, tk.END,
+                                              iid=self.conversation_dict[conversation_id]['conversation'][i][1],
+                                              text=self.conversation_dict[conversation_id]['conversation']
+                                              [i][0].replace('\n', ' '))
 
 
 def main():
