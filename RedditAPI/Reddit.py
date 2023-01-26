@@ -1,13 +1,7 @@
 import praw
 import pprint
 
-reddit = praw.Reddit(
-    client_id="kXHM-WcuSy2pDQ",
-    client_secret="KsixoG3bUwXCnJw5K8PASkaxumX-EQ",
-    user_agent="HCI:JeMiBot:1.0 (by u/JeMiBot)",
-    username="JeMiBot",
-    password="JesmerMichiel"
-)
+
 
 url = 'https://www.reddit.com/r/thenetherlands/comments/kieo5k/hoe_spaart_rthenetherlands/'
 # subreddit = reddit.subreddit(url)
